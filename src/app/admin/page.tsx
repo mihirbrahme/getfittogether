@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2 } from 'lucide-react';
+import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EventScheduler from '@/components/admin/EventScheduler';
 import WODManager from '@/components/admin/WODManager';
