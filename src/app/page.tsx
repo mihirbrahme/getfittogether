@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Zap, Trophy, Flame, Droplets, Moon, Footprints } from 'lucide-react';
+import { Zap, Trophy, Flame, Droplets, Moon, Footprints, ArrowRight, Shield, Rocket, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import CheckInModal, { CheckInData } from '@/components/CheckInModal';
 import Leaderboard from '@/components/Leaderboard';
 import JoinGroup from '@/components/JoinGroup';
+import Auth from '@/components/Auth';
 import { supabase } from '@/lib/supabase';
 
 interface WOD {
@@ -16,32 +17,57 @@ interface WOD {
   group_id?: string | null;
 }
 
+interface UserProfile {
+  id: string;
+  full_name: string;
+  role: string;
+  challenge_start_date: string;
+  total_points: number;
+}
+
 export default function Home() {
+  const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const [userId] = useState('00000000-0000-0000-0000-000000000000'); // Mocked user ID
   const [loading, setLoading] = useState(true);
   const [userGroups, setUserGroups] = useState<string[]>([]);
   const [todayWOD, setTodayWOD] = useState<WOD | null>(null);
 
   const [dailyStatus, setDailyStatus] = useState<CheckInData>({
-    core: {
-      wod: false,
-      steps: false,
-      hydration: false,
-      sleep: false,
-      cleanEating: false,
-    },
-    custom: {
-      sugar: false,
-      reading: false,
-    }
+    core: { wod: false, steps: false, hydration: false, sleep: false, cleanEating: false },
+    custom: { sugar: false, reading: false }
   });
 
+  useEffect(() => {
+    // Check session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const fetchData = async () => {
+    if (!session?.user) return;
+
     setLoading(true);
+    const userId = session.user.id;
     const today = new Date().toISOString().split('T')[0];
 
-    // 1. Fetch Approved Groups
+    // 1. Fetch Profile
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    setProfile(profileData);
+
+    // 2. Fetch Approved Groups
     const { data: groups } = await supabase
       .from('group_members')
       .select('group_id')
@@ -51,22 +77,19 @@ export default function Home() {
     const groupIds = groups?.map(g => g.group_id) || [];
     setUserGroups(groupIds);
 
-    // 2. Fetch WOD (Filtered by Groups)
-    // We fetch global WODs (group_id is null) OR WODs specifically for the user's groups
+    // 3. Fetch WOD (Filtered by Groups)
     const { data: wods } = await supabase
       .from('wods')
       .select('*')
       .eq('date', today);
 
     if (wods) {
-      // Filter manually to handle the "OR" logic more reliably with groupIds
       const filteredWods = wods.filter(w => !w.group_id || groupIds.includes(w.group_id));
-      // Prioritize group-specific WOD over global if both exist
       const bestWod = filteredWods.find(w => w.group_id !== null) || filteredWods[0];
       setTodayWOD(bestWod || null);
     }
 
-    // 3. Fetch Today's Log
+    // 4. Fetch Today's Log
     const { data: log } = await supabase
       .from('daily_logs')
       .select('*')
@@ -83,10 +106,7 @@ export default function Home() {
           sleep: log.sleep_done,
           cleanEating: log.clean_eating_done,
         },
-        custom: {
-          sugar: false, // Placeholder
-          reading: false,
-        }
+        custom: { sugar: false, reading: false }
       });
     }
     setLoading(false);
@@ -94,9 +114,11 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-  }, [userId]);
+  }, [session]);
 
   const handleCheckInSubmit = async (data: CheckInData) => {
+    if (!session?.user || !profile) return;
+
     setDailyStatus(data);
     setIsCheckInOpen(false);
 
@@ -113,7 +135,7 @@ export default function Home() {
     const { error } = await supabase
       .from('daily_logs')
       .upsert({
-        user_id: userId,
+        user_id: session.user.id,
         date: today,
         wod_done: data.core.wod,
         steps_done: data.core.steps,
@@ -123,25 +145,81 @@ export default function Home() {
         daily_points: points
       });
 
-    if (error) {
-      console.error('Error saving daily log:', error);
-      alert('Failed to save your progress.');
-    } else {
-      // Update profile total points (simplified)
-      const { data: profile } = await supabase
+    if (!error) {
+      await supabase
         .from('profiles')
-        .select('total_points')
-        .eq('id', userId)
-        .single();
-
-      if (profile) {
-        await supabase
-          .from('profiles')
-          .update({ total_points: profile.total_points + points })
-          .eq('id', userId);
-      }
+        .update({ total_points: profile.total_points + points })
+        .eq('id', session.user.id);
+      fetchData(); // Refresh to get updated points
     }
   };
+
+  const calculateProgress = () => {
+    if (!profile?.challenge_start_date) return { day: 1, week: 1 };
+    const start = new Date(profile.challenge_start_date);
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - start.getTime());
+    const day = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+    const week = Math.ceil(day / 7) || 1;
+    return { day, week };
+  };
+
+  const progress = calculateProgress();
+
+  if (!session) {
+    return (
+      <main className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Background Decorative Elements */}
+        <div className="absolute top-[-10%] left-[-10%] h-[40%] w-[40%] bg-primary/20 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] bg-accent/20 rounded-full blur-[120px]" />
+
+        <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
+          <div className="space-y-8 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 animate-in fade-in slide-in-from-top-4 duration-700">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Challenge Open</span>
+            </div>
+
+            <h1 className="text-5xl lg:text-7xl font-black text-white italic tracking-tighter leading-[0.9] uppercase animate-in fade-in slide-in-from-left-8 duration-700 delay-100">
+              Transform <br />
+              <span className="text-primary italic">Together</span>
+            </h1>
+
+            <p className="text-lg text-zinc-400 font-bold max-w-lg mx-auto lg:mx-0 leading-relaxed animate-in fade-in slide-in-from-left-8 duration-700 delay-200 uppercase tracking-tight">
+              A high-stakes, community-driven fitness experience powered by <span className="text-accent underline underline-offset-8 decoration-accent/30">VYAIAM</span>.
+              Track your WODs, climb the leaderboard, and claim your glory.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
+              <div className="glass p-4 rounded-2xl flex flex-col items-center lg:items-start border border-white/5">
+                <Rocket className="h-5 w-5 text-primary mb-2" />
+                <span className="text-2xl font-black text-white">200+</span>
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Active Members</span>
+              </div>
+              <div className="glass p-4 rounded-2xl flex flex-col items-center lg:items-start border border-white/5">
+                <Target className="h-5 w-5 text-accent mb-2" />
+                <span className="text-2xl font-black text-white">45 Days</span>
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Challenge Length</span>
+              </div>
+              <div className="glass p-4 rounded-2xl flex flex-col items-center lg:items-start border border-white/5 hidden sm:flex">
+                <Shield className="h-5 w-5 text-success mb-2" />
+                <span className="text-2xl font-black text-white">Daily</span>
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">WOD Updates</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <Auth />
+          </div>
+        </div>
+
+        <footer className="mt-20 text-center relative z-10 w-full animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <p className="text-[10px] font-black text-zinc-700 uppercase tracking-[0.4em]">Get Fit Together © 2025 • All Systems Operational</p>
+        </footer>
+      </main>
+    );
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center">
@@ -169,16 +247,16 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-              Get Fit <span className="text-primary">Together</span>
+              Get Fit <span className="text-primary tracking-tighter italic">Together</span>
             </h1>
             <div className="flex items-center gap-2">
               <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                powered by <span className="text-accent underline decoration-accent/30 underline-offset-4">VYAIAM</span>
+                Hi, {profile?.full_name?.split(' ')[0] || 'Operative'}
               </p>
               <div className="h-1 w-1 rounded-full bg-zinc-800" />
               <div className="flex items-center gap-1.5 bg-white/5 border border-white/5 rounded-full px-2.5 py-0.5">
-                <span className="text-[10px] font-black text-primary uppercase">Week 2</span>
-                <span className="text-[10px] font-black text-zinc-500 uppercase">Day 12</span>
+                <span className="text-[10px] font-black text-primary uppercase">Week {progress.week}</span>
+                <span className="text-[10px] font-black text-zinc-500 uppercase">Day {progress.day}</span>
               </div>
             </div>
           </div>
@@ -189,13 +267,17 @@ export default function Home() {
             <div className="flex flex-col">
               <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Total Points</span>
               <span className="text-2xl font-black text-white group cursor-default">
-                1,240 <span className="text-[10px] text-primary align-top">+25</span>
+                {profile?.total_points || 0}
               </span>
             </div>
             <div className="h-10 w-px bg-white/10" />
-            <div className="flex items-center gap-2 text-orange-500">
-              <Flame className="h-6 w-6 fill-orange-500/20" />
-              <span className="text-xl font-bold">12 Day Streak</span>
+            <div className="flex items-center gap-2 text-primary">
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-500 transition-colors"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </div>
@@ -203,7 +285,7 @@ export default function Home() {
 
       {userGroups.length === 0 ? (
         <div className="py-12">
-          <JoinGroup userId={userId} onJoinRequested={() => fetchData()} />
+          <JoinGroup userId={session.user.id} onJoinRequested={() => fetchData()} />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 animate-in fade-in slide-in-from-bottom-4 duration-700">

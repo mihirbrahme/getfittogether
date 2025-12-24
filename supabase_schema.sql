@@ -114,3 +114,17 @@ CREATE POLICY "Admins can manage WODs" ON wods FOR ALL USING (EXISTS (SELECT 1 F
 -- Daily Logs Policies
 CREATE POLICY "Users can manage their own logs" ON daily_logs FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Admins can view all logs" ON daily_logs FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- Trigger for auto-profile creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, role, status, challenge_start_date)
+  VALUES (new.id, new.raw_user_meta_data->>'full_name', 'participant', 'pending', CURRENT_DATE);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
