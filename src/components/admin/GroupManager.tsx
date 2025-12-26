@@ -114,125 +114,150 @@ export default function GroupManager() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-12">
             {/* Groups Grid */}
-            <div className="glass rounded-3xl p-8 border border-white/10 shadow-2xl">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Squad Management</h2>
-                        <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Create groups & generate join codes</p>
+            <section className="premium-card rounded-[3.5rem] p-12 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5E00]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 -z-10 group-hover:bg-[#FF5E00]/10 transition-colors duration-1000" />
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+                    <div className="flex items-center gap-5">
+                        <div className="h-14 w-14 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100 shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                            <Users className="h-7 w-7 text-[#FF5E00]" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
+                                SQUAD <span className="text-[#FF5E00]">REGISTRY</span>
+                            </h2>
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Unit Identification & Access Control</p>
+                        </div>
                     </div>
                     <button
                         onClick={() => setIsAdding(!isAdding)}
-                        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-black font-black px-6 py-3 rounded-2xl transition-all shadow-lg shadow-primary/20"
+                        className={cn(
+                            "primary-glow flex items-center gap-3 font-black px-8 py-4 rounded-[1.5rem] transition-all italic uppercase tracking-tight font-heading group/btn",
+                            isAdding ? "bg-zinc-100 text-zinc-500 shadow-none border border-zinc-200" : "bg-[#FF5E00] text-white"
+                        )}
                     >
-                        {isAdding ? 'CANCEL' : <Plus className="h-5 w-5" />}
-                        {!isAdding && 'NEW GROUP'}
+                        {isAdding ? 'ABORT CREATION' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> COMMISSION SQUAD</>}
                     </button>
                 </div>
 
                 {isAdding && (
-                    <form onSubmit={createGroup} className="mb-10 bg-white/5 border border-white/10 rounded-3xl p-6 flex gap-4 animate-in slide-in-from-top-4 duration-300">
+                    <form onSubmit={createGroup} className="mb-12 bg-zinc-50/50 border border-zinc-100 rounded-[2.5rem] p-8 flex gap-4 animate-in slide-in-from-top-4 duration-500">
                         <input
                             type="text"
-                            placeholder="Enter Squad Name..."
+                            placeholder="SQUAD IDENTIFIER (e.g., PHANTOM)"
                             required
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
-                            className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                            className="flex-1 bg-white border border-zinc-100 rounded-[1.25rem] px-8 py-4 text-zinc-900 font-black focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 transition-all shadow-sm uppercase tracking-widest text-xs"
                         />
                         <button
                             type="submit"
-                            className="bg-white text-black font-black italic px-8 py-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                            className="bg-zinc-900 text-white font-black italic px-10 py-4 rounded-[1.25rem] hover:bg-black transition-all hover:scale-[1.02] active:scale-[0.98] font-heading"
                         >
                             CREATE
                         </button>
                     </form>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {groups.map((group) => (
-                        <div key={group.id} className="glass-card p-6 rounded-2xl border border-white/5 hover:border-primary/30 transition-all space-y-4">
+                        <div key={group.id} className="bg-zinc-50/50 p-8 rounded-[2.5rem] border border-zinc-100 hover:border-[#FF5E00]/30 hover:shadow-xl hover:shadow-zinc-100 transition-all duration-500 space-y-6 group/card">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-black text-white italic tracking-tight uppercase">{group.name}</h3>
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                    <Shield className="h-4 w-4" />
+                                <h3 className="text-xl font-black text-zinc-900 italic tracking-tight uppercase font-heading group-hover/card:text-[#FF5E00] transition-colors">{group.name}</h3>
+                                <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-[#FF5E00] shadow-sm border border-zinc-100 group-hover/card:scale-110 transition-transform">
+                                    <Shield className="h-5 w-5" />
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5 group">
+                            <div className="flex items-center justify-between p-5 rounded-2xl bg-white border border-zinc-100 shadow-sm group-hover/card:border-[#FF5E00]/20 transition-all">
                                 <div className="flex flex-col">
-                                    <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Join Code</span>
-                                    <span className="text-sm font-black text-primary font-mono tracking-widest">{group.code}</span>
+                                    <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">ACCESS TOKEN</span>
+                                    <span className="text-lg font-black text-[#FF5E00] font-mono tracking-[0.2em]">{group.code}</span>
                                 </div>
                                 <button
                                     onClick={() => {
                                         navigator.clipboard.writeText(group.code);
-                                        alert('Code copied!');
+                                        // Simplified alert or toast would be better but keeping consistency
                                     }}
-                                    className="p-2 text-zinc-500 hover:text-white transition-colors"
+                                    className="h-10 w-10 flex items-center justify-center text-zinc-300 hover:text-zinc-900 bg-zinc-50 rounded-xl transition-colors hover:bg-zinc-100"
                                 >
                                     <Clipboard className="h-4 w-4" />
                                 </button>
                             </div>
 
                             <div className="flex items-center justify-between pt-2">
-                                <div className="flex items-center gap-2">
-                                    <Users className="h-4 w-4 text-zinc-500" />
-                                    <span className="text-xs font-bold text-white">{group.member_count} Members</span>
+                                <div className="flex items-center gap-3 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200/50">
+                                    <Users className="h-4 w-4 text-zinc-400" />
+                                    <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">{group.member_count} UNITS</span>
                                 </div>
                                 {group.pending_count! > 0 && (
-                                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warning/20 border border-warning/30">
-                                        <div className="h-1 w-1 rounded-full bg-warning animate-pulse" />
-                                        <span className="text-[10px] font-black text-warning uppercase">{group.pending_count} PENDING</span>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FF5E00]/10 border border-[#FF5E00]/20 shadow-sm animate-pulse">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-[#FF5E00]" />
+                                        <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest">{group.pending_count} PENDING</span>
                                     </div>
                                 )}
                             </div>
                         </div>
                     ))}
                 </div>
-            </div>
+            </section>
 
             {/* Approval Queue */}
-            <div className="glass rounded-3xl p-8 border border-white/10 shadow-2xl">
-                <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase mb-6">Approval Queue</h2>
+            <section className="premium-card rounded-[3.5rem] p-12 relative overflow-hidden group">
+                <div className="flex items-center gap-5 mb-10">
+                    <div className="h-14 w-14 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100 shadow-sm">
+                        <UserPlus className="h-7 w-7 text-emerald-500" />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
+                            APPROVAL <span className="text-emerald-500">QUEUE</span>
+                        </h2>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Pending Deployment Authorizations</p>
+                    </div>
+                </div>
+
                 {pendingMembers.length === 0 ? (
-                    <div className="text-center py-12 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                        <Lock className="h-12 w-12 text-zinc-700 mx-auto mb-4" />
-                        <p className="text-zinc-500 font-bold uppercase tracking-widest">Queue is clear</p>
+                    <div className="text-center py-20 bg-zinc-50/50 rounded-[3rem] border border-dashed border-zinc-200">
+                        <Lock className="h-12 w-12 text-zinc-200 mx-auto mb-6" />
+                        <h3 className="text-zinc-300 font-black uppercase tracking-[0.5em] text-[10px]">Queue Status: All Synchronized</h3>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {pendingMembers.map((member) => (
-                            <div key={member.id} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-all">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                                        <UserPlus className="h-6 w-6" />
+                            <div key={member.id} className="flex flex-col md:flex-row md:items-center justify-between p-8 rounded-[2.5rem] bg-zinc-50/50 border border-zinc-100 hover:border-zinc-200 transition-all group/item">
+                                <div className="flex items-center gap-6">
+                                    <div className="h-16 w-16 rounded-2xl bg-white border border-zinc-100 flex items-center justify-center text-emerald-500 shadow-sm group-hover/item:scale-110 transition-transform">
+                                        <UserPlus className="h-8 w-8" />
                                     </div>
                                     <div>
-                                        <h4 className="text-white font-black italic uppercase leading-none mb-1">{member.profiles.full_name || 'Anonymous User'}</h4>
-                                        <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Wants to join <span className="text-primary">{member.groups.name}</span></p>
+                                        <h4 className="text-2xl font-black italic uppercase font-heading leading-none text-zinc-900 mb-2">{member.profiles.full_name || 'ANONYMOUS OPERATIVE'}</h4>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">WANTS TO JOIN </span>
+                                            <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">{member.groups.name}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-4 mt-6 md:mt-0">
                                     <button
                                         onClick={() => moderateMember(member.id, true)}
-                                        className="p-3 bg-success/20 text-success rounded-xl hover:bg-success hover:text-black transition-all"
+                                        className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-sm border border-emerald-100"
                                     >
-                                        <Check className="h-5 w-5" />
+                                        <Check className="h-7 w-7" />
                                     </button>
                                     <button
                                         onClick={() => moderateMember(member.id, false)}
-                                        className="p-3 bg-red-500/20 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                                        className="h-16 w-16 bg-red-50 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-sm border border-red-100"
                                     >
-                                        <X className="h-5 w-5" />
+                                        <X className="h-7 w-7" />
                                     </button>
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
-            </div>
+            </section>
         </div>
     );
 }

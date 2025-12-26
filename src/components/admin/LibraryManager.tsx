@@ -70,144 +70,158 @@ export default function LibraryManager() {
     });
 
     return (
-        <div className="glass rounded-3xl p-8 border border-white/10 shadow-2xl">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                <div>
-                    <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">Workout Library</h2>
-                    <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest">Master templates for all challenges</p>
+        <section className="premium-card rounded-[3.5rem] p-12 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 -z-10 group-hover:bg-indigo-500/10 transition-colors duration-1000" />
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+                <div className="flex items-center gap-5">
+                    <div className="h-14 w-14 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100 shadow-sm group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                        <BookOpen className="h-7 w-7 text-indigo-500" />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
+                            WORKOUT <span className="text-indigo-500">LIBRARY</span>
+                        </h2>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Master Template Repository</p>
+                    </div>
                 </div>
                 <button
                     onClick={() => setIsAdding(!isAdding)}
-                    className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-black px-6 py-3 rounded-2xl transition-all shadow-lg shadow-indigo-500/20"
+                    className={cn(
+                        "primary-glow flex items-center gap-3 font-black px-8 py-4 rounded-[1.5rem] transition-all italic uppercase tracking-tight font-heading group/btn shadow-xl",
+                        isAdding ? "bg-zinc-100 text-zinc-500 shadow-none border border-zinc-200" : "bg-indigo-600 text-white shadow-indigo-500/20"
+                    )}
                 >
-                    {isAdding ? 'CANCEL' : <Plus className="h-5 w-5" />}
-                    {!isAdding && 'NEW TEMPLATE'}
+                    {isAdding ? 'ABORT ARCHIVE' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> NEW TEMPLATE</>}
                 </button>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+            <div className="flex flex-col md:flex-row gap-6 mb-12">
+                <div className="relative flex-1 group/input">
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300 group-focus-within/input:text-indigo-500 transition-colors" />
                     <input
                         type="text"
-                        placeholder="Search templates..."
+                        placeholder="SEARCH ARCHIVES..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-white border border-zinc-100 rounded-[1.25rem] pl-16 pr-8 py-4 text-zinc-900 font-black uppercase text-xs focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-sm"
                     />
                 </div>
-                <div className="relative">
-                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                <div className="relative group/input">
+                    <Filter className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300 group-focus-within/input:text-indigo-500 transition-colors" />
                     <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
-                        className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-10 py-3 text-white focus:outline-none focus:border-indigo-500 appearance-none capitalize"
+                        className="bg-white border border-zinc-100 rounded-[1.25rem] pl-16 pr-12 py-4 text-zinc-900 font-black uppercase text-xs focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 appearance-none shadow-sm"
                     >
-                        <option value="all">All Types</option>
-                        <option value="weekday">Weekday</option>
-                        <option value="weekend">Weekend</option>
-                        <option value="event">Event</option>
+                        <option value="all">ALL CLASSIFICATIONS</option>
+                        <option value="weekday">WEEKDAY PROTOCOLS</option>
+                        <option value="weekend">WEEKEND ACTIVE REST</option>
+                        <option value="event">SPECIAL EVENTS</option>
                     </select>
                 </div>
             </div>
 
             {isAdding && (
-                <form onSubmit={handleSubmit} className="mb-10 bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4 animate-in zoom-in-95 duration-300">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-zinc-500 uppercase px-2">Template Title</label>
-                        <input
-                            type="text"
-                            placeholder="e.g., Hell of a Morning"
-                            required
-                            value={formData.title}
-                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
-                        />
+                <form onSubmit={handleSubmit} className="mb-12 bg-zinc-50/50 border border-zinc-100 rounded-[2.5rem] p-10 space-y-8 animate-in zoom-in-95 duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">TEMPLATE IDENTIFIER</label>
+                            <input
+                                type="text"
+                                placeholder="e.g., HELL OF A MORNING"
+                                required
+                                value={formData.title}
+                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                className="w-full bg-white border border-zinc-100 rounded-[1.25rem] px-8 py-4 text-zinc-900 font-black focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-sm"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">PROTOCOL CLASS</label>
+                            <select
+                                value={formData.type}
+                                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                                className="w-full bg-white border border-zinc-100 rounded-[1.25rem] px-8 py-4 text-zinc-900 font-black uppercase focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 appearance-none shadow-sm"
+                            >
+                                <option value="weekday">WEEKDAY WOD</option>
+                                <option value="weekend">WEEKEND ACTIVE REST</option>
+                                <option value="event">EVENT SPECIAL</option>
+                            </select>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-zinc-500 uppercase px-2">Type</label>
-                        <select
-                            value={formData.type}
-                            onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 appearance-none capitalize"
-                        >
-                            <option value="weekday">Weekday WOD</option>
-                            <option value="weekend">Weekend Active Rest</option>
-                            <option value="event">Event Special</option>
-                        </select>
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-zinc-500 uppercase px-2">Description</label>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">OPERATIONAL DATA</label>
                         <textarea
-                            placeholder="Detailed reps, rounds, and instructions..."
-                            rows={4}
+                            placeholder="DETAILED REPS, ROUNDS, AND SUBMISSION GUIDELINES..."
+                            rows={6}
                             required
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                            className="w-full bg-white border border-zinc-100 rounded-[2rem] px-8 py-6 text-zinc-900 font-black text-xs leading-relaxed focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 resize-none transition-all shadow-sm uppercase tracking-widest"
                         />
                     </div>
                     <button
                         type="submit"
-                        className="w-full bg-indigo-500 text-white font-black italic text-lg py-4 rounded-2xl hover:scale-[1.01] transition-all shadow-xl shadow-indigo-500/20"
+                        className="w-full bg-indigo-600 text-white font-black italic text-2xl py-8 rounded-[2rem] hover:scale-[1.01] active:scale-[0.99] transition-all shadow-xl shadow-indigo-500/20 font-heading uppercase tracking-tight"
                     >
-                        SAVE TO LIBRARY
+                        ARCHIVE TEMPLATE
                     </button>
                 </form>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {filteredWorkouts.length === 0 ? (
-                    <div className="col-span-full text-center py-12 border border-dashed border-white/10 rounded-3xl">
-                        <BookOpen className="h-12 w-12 text-zinc-700 mx-auto mb-4" />
-                        <p className="text-zinc-500 font-bold uppercase tracking-widest">No templates found</p>
+                    <div className="col-span-full text-center py-24 bg-zinc-50/50 rounded-[3rem] border border-dashed border-zinc-200">
+                        <BookOpen className="h-16 w-16 text-zinc-200 mx-auto mb-6" />
+                        <h3 className="text-zinc-300 font-black uppercase tracking-[0.5em] text-[10px]">No Templates Found in Archives</h3>
                     </div>
                 ) : (
                     filteredWorkouts.map((wod) => (
-                        <div key={wod.id} className="glass-card p-6 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-all flex flex-col justify-between group">
-                            <div className="space-y-3">
+                        <div key={wod.id} className="bg-zinc-50/50 p-8 rounded-[2.5rem] border border-zinc-100 hover:border-indigo-500/30 hover:shadow-xl hover:shadow-zinc-100 transition-all duration-500 flex flex-col justify-between group/card">
+                            <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <div className={cn(
-                                        "text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-widest",
-                                        wod.type === 'weekday' ? "bg-primary/20 text-primary border border-primary/30" :
-                                            wod.type === 'weekend' ? "bg-success/20 text-success border border-success/30" :
-                                                "bg-accent/20 text-accent border border-accent/30"
+                                        "text-[9px] font-black uppercase px-3 py-1.5 rounded-xl tracking-widest border shadow-sm",
+                                        wod.type === 'weekday' ? "bg-zinc-900 text-white border-zinc-800" :
+                                            wod.type === 'weekend' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                "bg-indigo-600 text-white border-indigo-500"
                                     )}>
                                         {wod.type}
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => {
                                                 setFormData(wod);
                                                 setIsAdding(true);
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
                                             }}
-                                            className="p-2 bg-white/5 text-zinc-400 rounded-lg hover:bg-white/10 hover:text-white transition-all"
+                                            className="h-10 w-10 flex items-center justify-center bg-white text-zinc-300 rounded-xl hover:text-indigo-500 hover:bg-indigo-50 border border-zinc-100 transition-all shadow-sm"
                                         >
                                             <Edit3 className="h-4 w-4" />
                                         </button>
                                         <button
                                             onClick={() => deleteWorkout(wod.id)}
-                                            className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                                            className="h-10 w-10 flex items-center justify-center bg-white text-zinc-300 rounded-xl hover:text-red-500 hover:bg-red-50 border border-zinc-100 transition-all shadow-sm"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black text-white italic tracking-tight group-hover:text-indigo-400 transition-colors uppercase">{wod.title}</h3>
-                                    <p className="text-sm text-zinc-400 mt-1 line-clamp-3">{wod.description}</p>
+                                    <h3 className="text-xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading group-hover/card:text-indigo-500 transition-colors duration-500 leading-tight mb-2">{wod.title}</h3>
+                                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest line-clamp-3 group-hover/card:text-zinc-500 transition-colors">{wod.description}</p>
                                 </div>
                             </div>
-                            <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
-                                    <Dumbbell className="h-4 w-4" />
+                            <div className="mt-8 pt-6 border-t border-zinc-100/50 flex items-center justify-between">
+                                <div className="h-12 w-12 flex items-center justify-center rounded-2xl bg-white text-indigo-500 shadow-sm border border-zinc-100 group-hover/card:scale-110 group-hover/card:rotate-6 transition-all duration-500">
+                                    <Dumbbell className="h-6 w-6" />
                                 </div>
-                                <span className="text-[10px] font-black text-zinc-600 uppercase">Template ID: {wod.id.slice(0, 8)}</span>
+                                <span className="text-[9px] font-black text-zinc-200 uppercase tracking-[0.2em]">ID: {wod.id.slice(0, 8)}</span>
                             </div>
                         </div>
                     ))
                 )}
             </div>
-        </div>
+        </section>
     );
 }

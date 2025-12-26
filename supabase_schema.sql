@@ -2,10 +2,19 @@
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id),
   full_name TEXT,
+  display_name TEXT,
   role TEXT CHECK (role IN ('participant', 'admin')) DEFAULT 'participant',
   total_points INTEGER DEFAULT 0,
-  status TEXT CHECK (status IN ('pending', 'approved')) DEFAULT 'pending',
-  challenge_start_date DATE DEFAULT '2025-01-01', -- Example start date
+  status TEXT CHECK (status IN ('pending', 'approved', 'pending_onboarding')) DEFAULT 'pending_onboarding',
+  challenge_start_date DATE DEFAULT '2025-01-01',
+  
+  -- Onboarding Data
+  age INTEGER,
+  height TEXT,
+  weight TEXT,
+  fitness_level TEXT CHECK (fitness_level IN ('beginner', 'intermediate', 'advanced')),
+  injuries TEXT,
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -65,6 +74,7 @@ CREATE TABLE user_goals (
   goal_name TEXT NOT NULL,
   points INTEGER DEFAULT 5,
   active BOOLEAN DEFAULT TRUE,
+  expires_at DATE DEFAULT (CURRENT_DATE + INTERVAL '14 days'),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   UNIQUE(user_id, goal_name)
 );
@@ -79,6 +89,7 @@ CREATE TABLE daily_logs (
   water_done BOOLEAN DEFAULT FALSE,
   sleep_done BOOLEAN DEFAULT FALSE,
   clean_eating_done BOOLEAN DEFAULT FALSE,
+  custom_logs JSONB DEFAULT '{}'::jsonb,
   daily_points INTEGER DEFAULT 0,
   UNIQUE(user_id, date)
 );
@@ -91,36 +102,55 @@ ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_library ENABLE ROW LEVEL SECURITY;
 
+-- Helper function to check if a user is an admin without recursion
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN (
+    SELECT (role = 'admin')
+    FROM public.profiles
+    WHERE id = auth.uid()
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Profiles Policies
 CREATE POLICY "Users can view their own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can view all profiles" ON profiles FOR ALL USING (is_admin());
 
 -- Groups Policies
 CREATE POLICY "Everyone can view groups" ON groups FOR SELECT TO authenticated USING (TRUE);
-CREATE POLICY "Admins can manage groups" ON groups FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can manage groups" ON groups FOR ALL USING (is_admin());
 
 -- Group Members Policies
 CREATE POLICY "Users can view their own memberships" ON group_members FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Admins can manage all memberships" ON group_members FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can manage all memberships" ON group_members FOR ALL USING (is_admin());
 
 -- Workout Library Policies
 CREATE POLICY "Everyone can view library" ON workout_library FOR SELECT TO authenticated USING (TRUE);
-CREATE POLICY "Admins can manage library" ON workout_library FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can manage library" ON workout_library FOR ALL USING (is_admin());
 
 -- WODs Policies
 CREATE POLICY "Everyone can view WODs" ON wods FOR SELECT TO authenticated USING (TRUE);
-CREATE POLICY "Admins can manage WODs" ON wods FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can manage WODs" ON wods FOR ALL USING (is_admin());
 
 -- Daily Logs Policies
 CREATE POLICY "Users can manage their own logs" ON daily_logs FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Admins can view all logs" ON daily_logs FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can view all logs" ON daily_logs FOR SELECT USING (is_admin());
 
 -- Trigger for auto-profile creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name, role, status, challenge_start_date)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', 'participant', 'pending', CURRENT_DATE);
+  INSERT INTO public.profiles (id, full_name, display_name, role, status, challenge_start_date)
+  VALUES (
+    new.id, 
+    new.raw_user_meta_data->>'full_name', 
+    new.raw_user_meta_data->>'display_name',
+    'participant', 
+    'pending_onboarding', 
+    CURRENT_DATE
+  );
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
