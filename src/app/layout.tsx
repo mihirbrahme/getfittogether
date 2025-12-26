@@ -27,8 +27,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Get Fit Together | Gamified Fitness",
-  description: "Level up your fitness with your squad. Daily logs, leaderboards, and more.",
+  title: "Squad Goals x VYAIAM",
+  description: "Join the ultimate fitness challenge with your squad.",
 };
 
 export default function RootLayout({
