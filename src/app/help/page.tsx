@@ -74,7 +74,7 @@ export default function HelpPage() {
                             </div>
                         </div>
                     </div>
-                </div3>
+                </div>
             </div>
 
             {/* How to Use */}
