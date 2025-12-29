@@ -3,51 +3,97 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, Moon, Droplets, Check, X, Flame, Footprints, Utensils } from 'lucide-react';
+import { Loader2, Check, X, Target, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
-interface UserGoal {
+interface CheckInActivity {
     id: string;
-    goal_name: string;
+    activity_name: string;
+    activity_type: string;
+    points: number;
+    icon: string;
+    enabled: boolean;
+    display_order: number;
+}
+
+interface AdminAssignedGoal {
+    slot: number;
+    goal_templates: {
+        id: string;
+        name: string;
+        description: string;
+        points: number;
+    };
 }
 
 export default function CheckInPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [goals, setGoals] = useState<UserGoal[]>([]);
+    const [activities, setActivities] = useState<CheckInActivity[]>([]);
+    const [assignedGoals, setAssignedGoals] = useState<AdminAssignedGoal[]>([]);
+    const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
-    // Form State (Null = unanswered, true = yes, false = no)
-    const [wodDone, setWodDone] = useState<boolean | null>(null);
-    const [stepsDone, setStepsDone] = useState<boolean | null>(null);
-    const [dietDone, setDietDone] = useState<boolean | null>(null);
-    const [sleepDone, setSleepDone] = useState<boolean | null>(null);
-    const [waterDone, setWaterDone] = useState<boolean | null>(null);
-
-    // Custom Goals State
-    const [goalStatus, setGoalStatus] = useState<Record<string, boolean | null>>({});
+    // Activity responses: key -> boolean | null
+    const [responses, setResponses] = useState<Record<string, boolean | null>>({});
 
     useEffect(() => {
         const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return router.push('/auth?mode=login');
 
-            // 1. Fetch User Goals
-            const { data: userGoals } = await supabase
-                .from('user_goals')
-                .select('id, goal_name')
+            // 1. Get user's squad
+            const { data: membership } = await supabase
+                .from('group_members')
+                .select('group_id')
                 .eq('user_id', user.id)
-                .eq('active', true);
+                .eq('status', 'approved')
+                .single();
 
-            if (userGoals) {
-                setGoals(userGoals);
-                const initialStatus: Record<string, boolean | null> = {};
-                userGoals.forEach(g => initialStatus[g.id] = null);
-                setGoalStatus(initialStatus);
+            if (!membership) {
+                setLoading(false);
+                return;
             }
 
-            // 2. Check if already logged today
+            // 2. Fetch squad's check-in activities
+            const { data: squadActivities } = await supabase
+                .from('squad_checkin_activities')
+                .select('*')
+                .eq('squad_id', membership.group_id)
+                .eq('enabled', true)
+                .order('display_order');
+
+            if (squadActivities) {
+                setActivities(squadActivities);
+                const initialResponses: Record<string, boolean | null> = {};
+                squadActivities.forEach(a => initialResponses[`activity_${a.id}`] = null);
+                setResponses(initialResponses);
+            }
+
+            // 3. Fetch admin-assigned goals for this user
+            const { data: userGoals } = await supabase
+                .from('user_goal_assignments')
+                .select(`
+                    slot,
+                    goal_templates (
+                        id,
+                        name,
+                        description,
+                        points
+                    )
+                `)
+                .eq('user_id', user.id)
+                .order('slot');
+
+            if (userGoals) {
+                setAssignedGoals(userGoals as any);
+                userGoals.forEach((g: any) => {
+                    setResponses(prev => ({ ...prev, [`goal_${g.slot}`]: null }));
+                });
+            }
+
+            // 4. Check if already logged today
             const today = format(new Date(), 'yyyy-MM-dd');
             const { data: existingLog } = await supabase
                 .from('daily_logs')
@@ -57,13 +103,11 @@ export default function CheckInPage() {
                 .single();
 
             if (existingLog) {
-                setWodDone(existingLog.wod_done);
-                setStepsDone(existingLog.steps_done);
-                setDietDone(existingLog.clean_eating_done);
-                setSleepDone(existingLog.sleep_done);
-                setWaterDone(existingLog.water_done);
-                // Simple parsing for custom logs could be added here if we want persistence of answers 
-                // between sessions on the same day.
+                setAlreadySubmitted(true);
+                // Parse custom_logs to show previous responses
+                if (existingLog.custom_logs) {
+                    setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+                }
             }
 
             setLoading(false);
@@ -71,10 +115,10 @@ export default function CheckInPage() {
         fetchData();
     }, [router]);
 
-    const handleGoalToggle = (goalId: string, status: boolean) => {
-        setGoalStatus(prev => ({
+    const handleToggle = (key: string, value: boolean) => {
+        setResponses(prev => ({
             ...prev,
-            [goalId]: status
+            [key]: value
         }));
     };
 
@@ -85,176 +129,242 @@ export default function CheckInPage() {
 
         const today = format(new Date(), 'yyyy-MM-dd');
 
-        // Prepare Custom Logs JSON
-        const customLogs = Object.entries(goalStatus).reduce((acc, [id, status]) => {
-            const goalName = goals.find(g => g.id === id)?.goal_name;
-            if (goalName) acc[goalName] = status;
-            return acc;
-        }, {} as Record<string, boolean | null>);
+        // Calculate total points
+        let totalPoints = 0;
 
-        // Points are now calculated by DB Trigger, we just send raw data
+        // Points from activities
+        activities.forEach(activity => {
+            if (responses[`activity_${activity.id}`] === true) {
+                totalPoints += activity.points;
+            }
+        });
+
+        // Points from goals
+        assignedGoals.forEach(goal => {
+            if (responses[`goal_${goal.slot}`] === true) {
+                totalPoints += goal.goal_templates.points;
+            }
+        });
+
+        // Insert/update daily log with custom_logs
         const { error } = await supabase
             .from('daily_logs')
             .upsert({
                 user_id: user.id,
                 date: today,
-                wod_done: wodDone,
-                steps_done: stepsDone,
-                clean_eating_done: dietDone,
-                sleep_done: sleepDone,
-                water_done: waterDone,
-                custom_logs: customLogs
-            }, { onConflict: 'user_id, date' });
+                daily_points: totalPoints,
+                custom_logs: responses
+            });
 
-        if (error) {
-            console.error('Error logging:', error);
-            alert('Failed to save log. Please try again.');
+        if (!error) {
+            // Update user's total points
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('total_points')
+                .eq('id', user.id)
+                .single();
+
+            await supabase
+                .from('profiles')
+                .update({ total_points: (profile?.total_points || 0) + totalPoints })
+                .eq('id', user.id);
+
+            alert(`Check-in complete! You earned ${totalPoints} points today.`);
+            setAlreadySubmitted(true);
         } else {
-            router.push('/dashboard');
+            alert('Error submitting check-in: ' + error.message);
         }
+
         setSubmitting(false);
     };
 
-    if (loading) return (
-        <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-[#FF5E00]" />
-        </div>
-    );
+    const allAnswered = () => {
+        const allKeys = [
+            ...activities.map(a => `activity_${a.id}`),
+            ...assignedGoals.map(g => `goal_${g.slot}`)
+        ];
+        return allKeys.every(key => responses[key] !== null);
+    };
 
-    const isFormComplete =
-        wodDone !== null &&
-        stepsDone !== null &&
-        dietDone !== null &&
-        sleepDone !== null &&
-        waterDone !== null &&
-        Object.values(goalStatus).every(v => v !== null);
-
-    const ToggleCard = ({
-        icon: Icon,
-        title,
-        subtitle,
-        value,
-        onChange,
-        points
-    }: {
-        icon: any,
-        title: string,
-        subtitle: string,
-        value: boolean | null,
-        onChange: (v: boolean) => void,
-        points: number
-    }) => (
-        <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <div className="p-3 bg-zinc-50 rounded-xl text-[#FF5E00]">
-                    <Icon className="h-6 w-6" />
-                </div>
-                <div>
-                    <h3 className="font-bold text-zinc-900 uppercase">{title}</h3>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">+{points} PTS</span>
-                        <p className="text-xs text-zinc-400 font-medium">{subtitle}</p>
-                    </div>
-                </div>
+    if (loading) {
+        return (
+            <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-[#FF5E00]" />
             </div>
-            <div className="flex gap-2">
-                <button onClick={() => onChange(false)} className={cn("h-12 w-12 rounded-xl flex items-center justify-center border-2 transition-all", value === false ? "bg-zinc-900 border-zinc-900 text-white" : "bg-zinc-50 border-zinc-100 text-zinc-300")}>
-                    <X className="h-6 w-6" />
-                </button>
-                <button onClick={() => onChange(true)} className={cn("h-12 w-12 rounded-xl flex items-center justify-center border-2 transition-all", value === true ? "bg-[#FF5E00] border-[#FF5E00] text-white shadow-lg shadow-[#FF5E00]/30" : "bg-zinc-50 border-zinc-100 text-zinc-300")}>
-                    <Check className="h-6 w-6" />
-                </button>
-            </div>
-        </div>
-    );
+        );
+    }
 
     return (
-        <div className="max-w-xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-            <div className="text-center space-y-2">
-                <h1 className="text-3xl font-black italic uppercase text-zinc-900">Daily Report</h1>
-                <p className="text-zinc-500 font-medium text-sm">Truth is strength. Log your mission.</p>
+        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+            {/* Header */}
+            <div>
+                <h1 className="text-3xl font-black italic uppercase text-zinc-900 tracking-tighter">
+                    Daily <span className="text-[#FF5E00]">Check-In</span>
+                </h1>
+                <p className="text-zinc-500 font-medium text-sm mt-1">
+                    {alreadySubmitted
+                        ? 'Done for today! Come back tomorrow.'
+                        : 'Track your daily progress'
+                    }
+                </p>
             </div>
 
-            <div className="space-y-4">
-                <h3 className="text-center text-zinc-400 text-xs font-black uppercase tracking-widest">CORE HABITS</h3>
-
-                <ToggleCard
-                    icon={Flame}
-                    title="WOD"
-                    subtitle="Workout completed?"
-                    value={wodDone}
-                    onChange={setWodDone}
-                    points={20}
-                />
-
-                <ToggleCard
-                    icon={Footprints}
-                    title="Activity"
-                    subtitle="8k Steps or Run?"
-                    value={stepsDone}
-                    onChange={setStepsDone}
-                    points={10}
-                />
-
-                <ToggleCard
-                    icon={Utensils}
-                    title="Fuel"
-                    subtitle="Pro-Fuel / Clean Eating?"
-                    value={dietDone}
-                    onChange={setDietDone}
-                    points={10}
-                />
-
-                <ToggleCard
-                    icon={Moon}
-                    title="Sleep"
-                    subtitle="7+ Hours?"
-                    value={sleepDone}
-                    onChange={setSleepDone}
-                    points={10}
-                />
-
-                <ToggleCard
-                    icon={Droplets}
-                    title="Hydration"
-                    subtitle="2.5L+ Water?"
-                    value={waterDone}
-                    onChange={setWaterDone}
-                    points={10}
-                />
-            </div>
-
-            {goals.length > 0 && (
+            {/* Activities Section */}
+            {activities.length > 0 && (
                 <div className="space-y-4">
-                    <h3 className="text-center text-zinc-400 text-xs font-black uppercase tracking-widest">PERSONAL TARGETS</h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        {goals.map(goal => (
-                            <div key={goal.id} className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm flex items-center justify-between">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-zinc-900 uppercase">{goal.goal_name}</span>
-                                    <span className="text-[10px] font-black bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full w-fit mt-1">+5 PTS</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleGoalToggle(goal.id, false)} className={cn("h-12 w-12 rounded-xl flex items-center justify-center border-2 transition-all", goalStatus[goal.id] === false ? "bg-zinc-900 border-zinc-900 text-white" : "bg-zinc-50 border-zinc-100 text-zinc-300")}>
-                                        <X className="h-6 w-6" />
-                                    </button>
-                                    <button onClick={() => handleGoalToggle(goal.id, true)} className={cn("h-12 w-12 rounded-xl flex items-center justify-center border-2 transition-all", goalStatus[goal.id] === true ? "bg-[#FF5E00] border-[#FF5E00] text-white shadow-lg shadow-[#FF5E00]/30" : "bg-zinc-50 border-zinc-100 text-zinc-300")}>
-                                        <Check className="h-6 w-6" />
-                                    </button>
+                    <h2 className="text-xl font-black italic uppercase text-zinc-700 flex items-center gap-2">
+                        <Activity className="h-6 w-6 text-[#FF5E00]" />
+                        Daily Tasks
+                    </h2>
+                    {activities.map((activity) => (
+                        <div
+                            key={activity.id}
+                            className="bg-white rounded-2xl p-6 border border-zinc-100 shadow-sm"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-black text-lg text-zinc-900">
+                                        {activity.activity_name}
+                                    </h3>
+                                    <p className="text-sm text-[#FF5E00] font-bold">
+                                        {activity.points} points
+                                    </p>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleToggle(`activity_${activity.id}`, true)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        responses[`activity_${activity.id}`] === true
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <Check className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">Yes</span>
+                                </button>
+                                <button
+                                    onClick={() => handleToggle(`activity_${activity.id}`, false)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        responses[`activity_${activity.id}`] === false
+                                            ? "bg-red-500 text-white"
+                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <X className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">No</span>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
-            <button
-                onClick={handleSubmit}
-                disabled={submitting || !isFormComplete}
-                className="w-full bg-[#FF5E00] text-white font-black py-6 rounded-2xl text-xl uppercase italic tracking-tight shadow-xl shadow-[#FF5E00]/20 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale"
-            >
-                {submitting ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : "Verify & Submit Log"}
-            </button>
+            {/* Goals Section */}
+            {assignedGoals.length > 0 && (
+                <div className="space-y-4">
+                    <h2 className="text-xl font-black italic uppercase text-zinc-700 flex items-center gap-2">
+                        <Target className="h-6 w-6 text-[#FF5E00]" />
+                        Your Goals
+                    </h2>
+                    <p className="text-xs text-zinc-500 font-medium -mt-2">
+                        Set by admin
+                    </p>
+                    {assignedGoals.map((goal) => (
+                        <div
+                            key={goal.slot}
+                            className="bg-white rounded-2xl p-6 border border-zinc-100 shadow-sm"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-black text-lg text-zinc-900">
+                                        {goal.goal_templates.name}
+                                    </h3>
+                                    {goal.goal_templates.description && (
+                                        <p className="text-sm text-zinc-500 mt-1">
+                                            {goal.goal_templates.description}
+                                        </p>
+                                    )}
+                                    <p className="text-sm text-[#FF5E00] font-bold mt-1">
+                                        {goal.goal_templates.points} points
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleToggle(`goal_${goal.slot}`, true)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        responses[`goal_${goal.slot}`] === true
+                                            ? "bg-emerald-500 text-white"
+                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <Check className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">Yes</span>
+                                </button>
+                                <button
+                                    onClick={() => handleToggle(`goal_${goal.slot}`, false)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        responses[`goal_${goal.slot}`] === false
+                                            ? "bg-red-500 text-white"
+                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <X className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">No</span>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Submit Button */}
+            {!alreadySubmitted && (
+                <>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !allAnswered()}
+                        className="w-full bg-[#FF5E00] text-white font-black py-4 rounded-xl text-sm uppercase hover:bg-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {submitting ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                            'Submit'
+                        )}
+                    </button>
+
+                    {!allAnswered() && (
+                        <p className="text-center text-sm text-zinc-400 font-medium">
+                            Answer all items to submit
+                        </p>
+                    )}
+                </>
+            )}
+
+            {/* Empty State */}
+            {activities.length === 0 && assignedGoals.length === 0 && (
+                <div className="text-center py-12 bg-zinc-50 rounded-2xl">
+                    <Activity className="h-12 w-12 text-zinc-300 mx-auto mb-3" />
+                    <h3 className="font-black text-zinc-900 mb-1">No Tasks Yet</h3>
+                    <p className="text-sm text-zinc-500">
+                        Your admin will set up activities soon
+                    </p>
+                </div>
+            )}
         </div>
     );
 }
+

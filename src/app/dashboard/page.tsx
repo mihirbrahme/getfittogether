@@ -30,7 +30,7 @@ export default function Dashboard() {
             const { data: profile } = await supabase
                 .from('profiles')
                 .select(`
-                    display_name,
+                    first_name,
                     full_name,
                     total_points,
                     group_members (
@@ -43,8 +43,8 @@ export default function Dashboard() {
                 .single();
 
             if (profile) {
-                // Set Name (Use display name or first name)
-                const nameToUse = profile.display_name || profile.full_name?.split(' ')[0] || 'Soldier';
+                // Set Name (Use first name or fallback to full name)
+                const nameToUse = profile.first_name || profile.full_name?.split(' ')[0] || 'Participant';
                 setFirstName(nameToUse);
                 setTotalPoints(profile.total_points || 0);
 

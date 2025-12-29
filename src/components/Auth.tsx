@@ -6,20 +6,12 @@ import { Mail, Lock, ArrowRight, Loader2, User, Ruler, Weight, Target, ShieldChe
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-const availableGoals = [
-    { id: 'sugar', label: 'No Added Sugar', points: 5 },
-    { id: 'reading', label: 'Reading', points: 5 },
-    { id: 'meditation', label: 'Meditation', points: 5 },
-    { id: 'cold-plunge', label: 'Cold Exposure', points: 5 },
-    { id: 'journal', label: 'Journaling', points: 5 },
-    { id: 'no-caffeine-after-2', label: 'Caffeine Cutoff', points: 5 },
-];
-
 interface Squad {
     id: string;
     name: string;
     code: string;
 }
+
 
 interface AuthProps {
     defaultMode?: 'login' | 'register';
@@ -35,12 +27,21 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
     // Form State
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [displayName, setDisplayName] = useState('');
-    const [height, setHeight] = useState('');
-    const [weight, setWeight] = useState('');
-    const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [height, setHeight] = useState(''); // in cms
+    const [weight, setWeight] = useState(''); // in kgs
+    const [bodyFat, setBodyFat] = useState('');
+    const [muscleMass, setMuscleMass] = useState('');
     const [selectedSquadId, setSelectedSquadId] = useState('');
+
+    // Calculate BMI
+    const calculateBMI = (heightCm: number, weightKg: number): number => {
+        if (!heightCm || !weightKg) return 0;
+        return Math.round((weightKg / Math.pow(heightCm / 100, 2)) * 100) / 100;
+    };
+
+    const bmi = calculateBMI(parseFloat(height) || 0, parseFloat(weight) || 0);
 
     useEffect(() => {
         const fetchSquads = async () => {
@@ -54,12 +55,6 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
         fetchSquads();
     }, []);
 
-    const toggleGoal = (id: string) => {
-        setSelectedGoals(prev =>
-            prev.includes(id) ? prev.filter(g => g !== id) :
-                prev.length < 2 ? [...prev, id] : [prev[1], id]
-        );
-    };
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -94,7 +89,6 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                 }
             } else {
                 // Registration Logic
-                if (selectedGoals.length !== 2) throw new Error('Please select exactly 2 goals.');
                 if (!selectedSquadId) throw new Error('Please select a Squad.');
 
                 // 1. Sign Up
@@ -103,8 +97,7 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                     password,
                     options: {
                         data: {
-                            full_name: fullName,
-                            display_name: displayName,
+                            full_name: `${firstName} ${lastName}`,
                         }
                     }
                 });
@@ -114,44 +107,43 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
 
                 const userId = authData.user.id;
 
-                // 2. Update Profile with Biometrics (Trigger handles base profile)
+                // 2. Create/Update Profile with Biometrics (UPSERT)
+                // Use UPSERT instead of UPDATE since trigger might not work
                 const { error: profileError } = await supabase
                     .from('profiles')
-                    .update({
-                        height,
-                        weight,
-                        status: 'approved'
-                    })
-                    .eq('id', userId);
+                    .upsert({
+                        id: userId,
+                        first_name: firstName,
+                        last_name: lastName,
+                        full_name: `${firstName} ${lastName}`,
+                        display_name: firstName,
+                        height: parseFloat(height),
+                        weight: parseFloat(weight),
+                        body_fat_percentage: parseFloat(bodyFat) || null,
+                        muscle_mass_percentage: parseFloat(muscleMass) || null,
+                        role: 'participant',
+                        status: 'pending',
+                        total_points: 0
+                        // BMI will be auto-calculated by trigger
+                    });
 
                 if (profileError) console.error('Profile Update Error:', profileError);
 
-                // 3. Set Goals
-                const goalEntries = selectedGoals.map(g => ({
-                    user_id: userId,
-                    goal_name: availableGoals.find(ag => ag.id === g)?.label || g,
-                    points: 5,
-                    active: true
-                }));
-
-                const { error: goalError } = await supabase
-                    .from('user_goals')
-                    .insert(goalEntries);
-
-                if (goalError) console.error('Goal Error:', goalError);
-
-                // 4. Team Assignment
+                // 3. Squad Assignment
                 const { error: joinError } = await supabase
                     .from('group_members')
                     .insert({
                         group_id: selectedSquadId,
                         user_id: userId,
-                        status: 'approved'
+                        status: 'pending'
                     });
-                if (joinError) console.error('Team Join Error:', joinError);
+                if (joinError) console.error('Squad Join Error:', joinError);
 
-                // Redirect to dashboard after registration
-                router.push('/dashboard');
+                // 4. Goals will be assigned by admin later
+                // No user_goals insertion here
+
+                // Redirect to pending approval page
+                router.push('/pending-approval');
             }
         } catch (err: any) {
             setError(err.message === 'Invalid login credentials' ? 'Invalid email or password.' : err.message);
@@ -195,22 +187,22 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                 {mode === 'register' && (
                     <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Full Name</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">First Name</label>
                             <input
-                                placeholder="J. DOE"
+                                placeholder="JOHN"
                                 required
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
                                 className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Display Name</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Last Name</label>
                             <input
-                                placeholder="JOHNNY"
+                                placeholder="DOE"
                                 required
-                                value={displayName}
-                                onChange={(e) => setDisplayName(e.target.value)}
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
                                 className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                             />
                         </div>
@@ -251,45 +243,59 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                     <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500 delay-100">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Height</label>
+                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Height (cm)</label>
                                 <input
-                                    placeholder="CM / FT"
+                                    type="number"
+                                    placeholder="175"
                                     required
                                     value={height}
                                     onChange={(e) => setHeight(e.target.value)}
-                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-sm text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Weight</label>
+                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Weight (kg)</label>
                                 <input
-                                    placeholder="KG / LBS"
+                                    type="number"
+                                    placeholder="70"
                                     required
                                     value={weight}
                                     onChange={(e) => setWeight(e.target.value)}
-                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-sm text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1 block text-center">Select 2 Personal Goals</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {availableGoals.map(goal => (
-                                    <button
-                                        key={goal.id}
-                                        type="button"
-                                        onClick={() => toggleGoal(goal.id)}
-                                        className={cn(
-                                            "px-4 py-3 rounded-2xl text-[10px] font-black transition-all border",
-                                            selectedGoals.includes(goal.id)
-                                                ? "bg-[#FF5E00] text-white border-[#FF5E00] shadow-lg shadow-[#FF5E00]/20"
-                                                : "bg-white text-zinc-400 border-zinc-100 hover:border-zinc-200"
-                                        )}
-                                    >
-                                        {goal.label.toUpperCase()}
-                                    </button>
-                                ))}
+                        {bmi > 0 && (
+                            <div className="text-center p-3 bg-blue-50 border border-blue-100 rounded-2xl">
+                                <p className="text-xs text-blue-600 font-bold">
+                                    Calculated BMI: <span className="text-lg font-black">{bmi}</span>
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Body Fat %</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="18.5"
+                                    value={bodyFat}
+                                    onChange={(e) => setBodyFat(e.target.value)}
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-sm text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Muscle Mass %</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="42"
+                                    value={muscleMass}
+                                    onChange={(e) => setMuscleMass(e.target.value)}
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-sm text-center focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                />
                             </div>
                         </div>
 
@@ -302,7 +308,7 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                                     onChange={(e) => setSelectedSquadId(e.target.value)}
                                     className="w-full bg-orange-50/50 border border-orange-100 rounded-2xl px-6 py-4 text-zinc-900 font-black uppercase text-sm appearance-none focus:outline-none focus:border-[#FF5E00]/50 transition-all"
                                 >
-                                    <option value="" disabled className="text-zinc-300">Choose Team</option>
+                                    <option value="" disabled className="text-zinc-300">Choose Squad</option>
                                     {squads.map(squad => (
                                         <option key={squad.id} value={squad.id} className="text-zinc-900 py-4 font-black">
                                             {squad.name.toUpperCase()} (CODE: {squad.code})
@@ -311,6 +317,9 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                                 </select>
                                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 h-5 w-5 text-[#FF5E00] pointer-events-none" />
                             </div>
+                            <p className="text-[10px] text-zinc-400 text-center px-2 font-medium">
+                                Your personal goals will be assigned by admin
+                            </p>
                         </div>
                     </div>
                 )}

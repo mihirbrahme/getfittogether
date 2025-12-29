@@ -14,8 +14,8 @@ export default function SettingsPage() {
 
     // Profile Data
     const [email, setEmail] = useState('');
-    const [fullName, setFullName] = useState('');
-    const [displayName, setDisplayName] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [role, setRole] = useState('');
     const [status, setStatus] = useState('');
     const [totalPoints, setTotalPoints] = useState(0);
@@ -47,8 +47,8 @@ export default function SettingsPage() {
             .single();
 
         if (profile) {
-            setFullName(profile.full_name || '');
-            setDisplayName(profile.display_name || '');
+            setFirstName(profile.first_name || '');
+            setLastName(profile.last_name || '');
             setRole(profile.role || 'participant');
             setStatus(profile.status || 'pending');
             setTotalPoints(profile.total_points || 0);
@@ -59,8 +59,8 @@ export default function SettingsPage() {
     };
 
     const handleSaveProfile = async () => {
-        if (!fullName.trim()) {
-            alert('Full name is required');
+        if (!firstName.trim() || !lastName.trim()) {
+            alert('First and last name are required');
             return;
         }
 
@@ -71,8 +71,10 @@ export default function SettingsPage() {
         const { error } = await supabase
             .from('profiles')
             .update({
-                full_name: fullName.trim(),
-                display_name: displayName.trim() || null
+                first_name: firstName.trim(),
+                last_name: lastName.trim(),
+                full_name: `${firstName.trim()} ${lastName.trim()}`,
+                display_name: firstName.trim()
             })
             .eq('id', user.id);
 
@@ -130,10 +132,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase text-zinc-900 tracking-tighter">
-                        Account <span className="text-[#FF5E00]">Settings</span>
+                        <span className="text-[#FF5E00]">Settings</span>
                     </h1>
                     <p className="text-zinc-500 font-medium text-sm mt-1">
-                        Manage your profile and preferences
+                        Manage your profile
                     </p>
                 </div>
                 <div className="h-12 w-12 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100">
@@ -145,10 +147,10 @@ export default function SettingsPage() {
             <div className="bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-[2.5rem] p-8 text-white">
                 <div className="flex items-center gap-6">
                     <div className="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
-                        <span className="text-4xl font-black">{(displayName || fullName)[0]?.toUpperCase()}</span>
+                        <span className="text-4xl font-black">{firstName[0]?.toUpperCase()}</span>
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-2xl font-black italic uppercase mb-1">{displayName || fullName}</h2>
+                        <h2 className="text-2xl font-black italic uppercase mb-1">{firstName} {lastName}</h2>
                         <p className="text-orange-100 text-sm font-medium">{email}</p>
                         <div className="flex items-center gap-4 mt-3">
                             <span className="text-xs font-black bg-white/20 px-3 py-1 rounded-full uppercase">
@@ -169,33 +171,33 @@ export default function SettingsPage() {
             <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-sm">
                 <h3 className="text-lg font-black italic uppercase text-zinc-900 mb-6 flex items-center gap-3">
                     <User className="h-6 w-6 text-[#FF5E00]" />
-                    Profile Information
+                    Profile
                 </h3>
 
                 <div className="space-y-4">
                     <div>
                         <label className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-2 block">
-                            Full Name *
+                            First Name *
                         </label>
                         <input
                             type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
                             className="w-full px-6 py-4 rounded-xl border border-zinc-200 focus:outline-none focus:border-[#FF5E00] focus:ring-4 focus:ring-[#FF5E00]/10 font-medium"
-                            placeholder="Your full name"
+                            placeholder="Your first name"
                         />
                     </div>
 
                     <div>
                         <label className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-2 block">
-                            Display Name (Optional)
+                            Last Name *
                         </label>
                         <input
                             type="text"
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
                             className="w-full px-6 py-4 rounded-xl border border-zinc-200 focus:outline-none focus:border-[#FF5E00] focus:ring-4 focus:ring-[#FF5E00]/10 font-medium"
-                            placeholder="How you want to be called"
+                            placeholder="Your last name"
                         />
                         <p className="text-xs text-zinc-400 mt-2 font-medium">
                             This will be shown in the dashboard and leaderboard
@@ -225,7 +227,7 @@ export default function SettingsPage() {
                         ) : (
                             <>
                                 <Save className="h-5 w-5" />
-                                Save Changes
+                                Save
                             </>
                         )}
                     </button>
@@ -290,7 +292,7 @@ export default function SettingsPage() {
                                 disabled={changingPassword || !newPassword || !confirmPassword}
                                 className="flex-1 bg-emerald-500 text-white font-black py-4 rounded-xl text-sm uppercase hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {changingPassword ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : 'Update Password'}
+                                {changingPassword ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : 'Update'}
                             </button>
                             <button
                                 onClick={() => {
@@ -342,14 +344,14 @@ export default function SettingsPage() {
             {/* Danger Zone */}
             <div className="bg-white rounded-[2.5rem] p-8 border-2 border-red-100 shadow-sm">
                 <h3 className="text-lg font-black italic uppercase text-red-600 mb-4">
-                    Danger Zone
+                    Sign Out
                 </h3>
                 <button
                     onClick={handleLogout}
                     className="w-full bg-red-500 text-white font-black py-4 rounded-xl text-sm uppercase tracking-tight hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
                 >
                     <LogOut className="h-5 w-5" />
-                    Sign Out
+                    Logout
                 </button>
             </div>
         </div>

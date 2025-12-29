@@ -24,6 +24,8 @@ interface PendingMember {
     status: string;
     created_at: string;
     profiles: {
+        first_name: string;
+        last_name: string;
         full_name: string;
     };
     groups: {
@@ -72,10 +74,18 @@ export default function GroupManager() {
         const { data: pendingData, error: pendingError } = await supabase
             .from('group_members')
             .select(`
-        id, user_id, group_id, status, created_at,
-        profiles ( full_name ),
-        groups ( name )
-      `)
+                id,
+                user_id,
+                group_id,
+                status,
+                created_at,
+                profiles (
+                    first_name,
+                    last_name,
+                    full_name
+                ),
+                groups ( name )
+            `)
             .eq('status', 'pending')
             .order('created_at', { ascending: true });
 
@@ -110,11 +120,41 @@ export default function GroupManager() {
     };
 
     const moderateMember = async (memberId: string, approve: boolean) => {
-        const { error } = approve
-            ? await supabase.from('group_members').update({ status: 'approved' }).eq('id', memberId)
-            : await supabase.from('group_members').delete().eq('id', memberId);
+        if (approve) {
+            // Get the user_id from the group_member record
+            const { data: memberData } = await supabase
+                .from('group_members')
+                .select('user_id')
+                .eq('id', memberId)
+                .single();
 
-        if (!error) fetchGroups();
+            if (!memberData) return;
+
+            // Update both group_members and profile status
+            const { error: memberError } = await supabase
+                .from('group_members')
+                .update({ status: 'approved' })
+                .eq('id', memberId);
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ status: 'approved' })
+                .eq('id', memberData.user_id);
+
+            if (!memberError && !profileError) {
+                fetchGroups();
+            } else {
+                alert('Error approving member: ' + (memberError?.message || profileError?.message));
+            }
+        } else {
+            // Reject: delete group membership
+            const { error } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('id', memberId);
+
+            if (!error) fetchGroups();
+        }
     };
 
     return (
@@ -240,7 +280,9 @@ export default function GroupManager() {
                                         <UserPlus className="h-8 w-8" />
                                     </div>
                                     <div>
-                                        <h4 className="text-2xl font-black italic uppercase font-heading leading-none text-zinc-900 mb-2">{member.profiles.full_name || 'ANONYMOUS OPERATIVE'}</h4>
+                                        <h4 className="text-2xl font-black italic uppercase font-heading leading-none text-zinc-900 mb-2">
+                                            {member.profiles.first_name} {member.profiles.last_name || ''}
+                                        </h4>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">WANTS TO JOIN </span>
                                             <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">{member.groups.name}</span>

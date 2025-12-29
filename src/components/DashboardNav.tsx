@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, CheckCircle, Users, Target, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Home, ClipboardList, CheckCircle, Users, Target, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
@@ -16,6 +18,31 @@ const navItems = [
 
 export default function DashboardNav() {
     const pathname = usePathname();
+    const router = useRouter();
+    const [firstName, setFirstName] = useState('Participant');
+
+    useEffect(() => {
+        const fetchUserName = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('first_name')
+                .eq('id', user.id)
+                .single();
+
+            if (profile?.first_name) {
+                setFirstName(profile.first_name);
+            }
+        };
+        fetchUserName();
+    }, []);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/auth?mode=login');
+    };
 
     return (
         <>
@@ -58,17 +85,23 @@ export default function DashboardNav() {
                     />
                 </div>
 
-                <div className="p-6 border-t border-zinc-100">
+                <div className="p-6 border-t border-zinc-100 space-y-3">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-zinc-100 border border-zinc-200 overflow-hidden">
-                            {/* Placeholder for user avatar, could be fetched from profile */}
                             <Users className="h-full w-full p-2 text-zinc-300" />
                         </div>
-                        <div>
-                            <p className="text-xs font-black uppercase text-zinc-900">Soldier</p>
-                            <Link href="/dashboard/profile" className="text-[10px] font-bold text-zinc-400 uppercase hover:text-[#FF5E00]">View Profile</Link>
+                        <div className="flex-1">
+                            <p className="text-xs font-black uppercase text-zinc-900">{firstName}</p>
+                            <Link href="/dashboard/settings" className="text-[10px] font-bold text-zinc-400 uppercase hover:text-[#FF5E00]">Settings</Link>
                         </div>
                     </div>
+                    <button
+                        onClick={handleLogout}
+                        className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-black py-2 px-4 rounded-lg text-xs uppercase flex items-center justify-center gap-2 transition-colors"
+                    >
+                        <LogOut className="h-4 w-4" />
+                        Logout
+                    </button>
                 </div>
             </aside>
 
