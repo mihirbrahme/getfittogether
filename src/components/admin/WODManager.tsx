@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Activity, Plus, Search, Dumbbell, Zap, Calendar, Users, BookOpen, Edit3, Trash2 } from 'lucide-react';
+import { Activity, Plus, Search, Dumbbell, Zap, Calendar, Users, BookOpen, Edit3, Trash2, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface WOD {
@@ -12,6 +12,7 @@ interface WOD {
     description: string;
     type: 'weekday' | 'weekend' | 'event';
     group_id: string | null;
+    video_url?: string;
 }
 
 interface LibraryWorkout {
@@ -19,6 +20,7 @@ interface LibraryWorkout {
     title: string;
     description: string;
     type: 'weekday' | 'weekend' | 'event';
+    video_url?: string;
 }
 
 interface Group {
@@ -26,12 +28,18 @@ interface Group {
     name: string;
 }
 
-export default function WODManager() {
+interface WODManagerProps {
+    initialDate?: string | null;
+    editWODId?: string | null;
+}
+
+export default function WODManager({ initialDate, editWODId }: WODManagerProps = {}) {
     const [wods, setWods] = useState<WOD[]>([]);
     const [library, setLibrary] = useState<LibraryWorkout[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
     const [isAdding, setIsAdding] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [selectedSquads, setSelectedSquads] = useState<string[]>([]); // Multi-squad selection
 
     const [formData, setFormData] = useState<WOD>({
         date: new Date().toISOString().split('T')[0],
@@ -39,6 +47,7 @@ export default function WODManager() {
         description: '',
         type: 'weekday',
         group_id: null,
+        video_url: '',
     });
 
     const fetchData = async () => {
@@ -56,6 +65,43 @@ export default function WODManager() {
         fetchData();
     }, []);
 
+    // Handle initial date from calendar
+    useEffect(() => {
+        if (initialDate && !isAdding) {
+            setIsAdding(true);
+            setFormData(prev => ({ ...prev, date: initialDate }));
+        }
+    }, [initialDate]);
+
+    // Handle edit WOD from calendar
+    useEffect(() => {
+        const loadWODForEdit = async () => {
+            if (editWODId) {
+                const wodToEdit = wods.find(w => w.id === editWODId);
+                if (wodToEdit) {
+                    setIsAdding(true);
+                    setFormData({
+                        date: wodToEdit.date,
+                        title: wodToEdit.title,
+                        description: wodToEdit.description,
+                        type: wodToEdit.type,
+                        group_id: wodToEdit.group_id,
+                        video_url: wodToEdit.video_url || '',
+                    });
+                    // Load assigned squads if many-to-many
+                    const { data: assignments } = await supabase
+                        .from('wod_squad_assignments')
+                        .select('group_id')
+                        .eq('wod_id', editWODId);
+                    if (assignments) {
+                        setSelectedSquads(assignments.map(a => a.group_id));
+                    }
+                }
+            }
+        };
+        loadWODForEdit();
+    }, [editWODId, wods]);
+
     const handleTemplateSelect = (templateId: string) => {
         const template = library.find(t => t.id === templateId);
         if (template) {
@@ -70,21 +116,61 @@ export default function WODManager() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { error } = await supabase.from('wods').upsert([formData]);
 
-        if (!error) {
-            setIsAdding(false);
-            setFormData({
-                date: new Date().toISOString().split('T')[0],
-                title: '',
-                description: '',
-                type: 'weekday',
-                group_id: null,
-            });
-            fetchData();
-        } else {
-            alert('Error updating WOD: ' + error.message);
+        // Insert/Update the WOD
+        const { data: wodData, error: wodError } = await supabase
+            .from('wods')
+            .upsert([formData])
+            .select()
+            .single();
+
+        if (wodError) {
+            alert('Error updating WOD: ' + wodError.message);
+            return;
         }
+
+        // Handle squad assignments if any squads are selected
+        if (selectedSquads.length > 0 && wodData) {
+            // Delete existing assignments for this WOD
+            await supabase
+                .from('wod_squad_assignments')
+                .delete()
+                .eq('wod_id', wodData.id);
+
+            // Insert new assignments
+            const assignments = selectedSquads.map(groupId => ({
+                wod_id: wodData.id,
+                group_id: groupId
+            }));
+
+            const { error: assignError } = await supabase
+                .from('wod_squad_assignments')
+                .insert(assignments);
+
+            if (assignError) {
+                alert('Error assigning squads: ' + assignError.message);
+                return;
+            }
+        } else if (wodData && selectedSquads.length === 0) {
+            // If no squads selected, delete all assignments (broadcast to all)
+            await supabase
+                .from('wod_squad_assignments')
+                .delete()
+                .eq('wod_id', wodData.id);
+        }
+
+        // Reset form
+        setIsAdding(false);
+        setSelectedSquads([]);
+        setFormData({
+            date: new Date().toISOString().split('T')[0],
+            title: '',
+            description: '',
+            type: 'weekday',
+            group_id: null,
+            video_url: '',
+        });
+        fetchData();
     };
 
     return (
@@ -100,7 +186,7 @@ export default function WODManager() {
                         <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
                             WOD <span className="text-[#FF5E00]">ENGINE</span>
                         </h2>
-                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Neural Workout Deployment System</p>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Workout Management</p>
                     </div>
                 </div>
                 <button
@@ -110,7 +196,7 @@ export default function WODManager() {
                         isAdding ? "bg-zinc-100 text-zinc-500 shadow-none border border-zinc-200" : "bg-[#FF5E00] text-white"
                     )}
                 >
-                    {isAdding ? 'ABORT DEPLOYMENT' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> INITIATE NEW DEPLOY</>}
+                    {isAdding ? 'Cancel' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> Add Workout</>}
                 </button>
             </div>
 
@@ -118,14 +204,14 @@ export default function WODManager() {
                 <form onSubmit={handleSubmit} className="mb-12 bg-zinc-50/50 border border-zinc-100 rounded-[2.5rem] p-10 space-y-8 animate-in zoom-in-95 duration-500 relative">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">01. TEMPLATE UPLOAD</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Pick from Library (optional)</label>
                             <div className="relative group/input">
                                 <BookOpen className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300 group-focus-within/input:text-[#FF5E00] transition-colors" />
                                 <select
                                     onChange={(e) => handleTemplateSelect(e.target.value)}
                                     className="w-full bg-white border border-zinc-100 rounded-[1.25rem] pl-16 pr-8 py-4 text-zinc-900 font-black uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 appearance-none transition-all shadow-sm"
                                 >
-                                    <option value="">MANUAL OVERRIDE</option>
+                                    <option value="">Create New</option>
                                     {library.map(t => (
                                         <option key={t.id} value={t.id}>{t.title}</option>
                                     ))}
@@ -134,7 +220,7 @@ export default function WODManager() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">02. TARGET AUDIENCE</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Show to Squads</label>
                             <div className="relative group/input">
                                 <Users className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300 group-focus-within/input:text-[#FF5E00] transition-colors" />
                                 <select
@@ -142,7 +228,7 @@ export default function WODManager() {
                                     onChange={(e) => setFormData({ ...formData, group_id: e.target.value || null })}
                                     className="w-full bg-white border border-zinc-100 rounded-[1.25rem] pl-16 pr-8 py-4 text-zinc-900 font-black uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 appearance-none transition-all shadow-sm"
                                 >
-                                    <option value="">BROADCAST - ALL OPERATIVES</option>
+                                    <option value="">All Squads</option>
                                     {groups.map(g => (
                                         <option key={g.id} value={g.id}>{g.name}</option>
                                     ))}
@@ -151,7 +237,7 @@ export default function WODManager() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">03. SCHEDULE DATE</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Date</label>
                             <input
                                 type="date"
                                 required
@@ -162,24 +248,24 @@ export default function WODManager() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">04. OPERATION CLASS</label>
+                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Type</label>
                             <select
                                 value={formData.type}
                                 onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                                 className="w-full bg-white border border-zinc-100 rounded-[1.25rem] px-8 py-4 text-zinc-900 font-black uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 appearance-none transition-all shadow-sm"
                             >
-                                <option value="weekday">STANDARD PROTOCOL</option>
-                                <option value="weekend">ACTIVE REST</option>
-                                <option value="event">SPECIAL DEPLOYMENT</option>
+                                <option value="weekday">Weekday</option>
+                                <option value="weekend">Weekend</option>
+                                <option value="event">Special Event</option>
                             </select>
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">05. MISSION IDENTIFIER</label>
+                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Title</label>
                         <input
                             type="text"
-                            placeholder="OPERATION: PHOENIX RISE"
+                            placeholder="e.g., Day 1: Burpee Challenge"
                             required
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -188,9 +274,9 @@ export default function WODManager() {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">06. MISSION BRIEFING DATA</label>
+                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Instructions</label>
                         <textarea
-                            placeholder="DETAILED REPS, ROUNDS, AND OPERATIONAL PARAMETERS..."
+                            placeholder="e.g., 5 rounds: 20 burpees, 30 squats, rest 1 min"
                             rows={6}
                             required
                             value={formData.description}
@@ -199,11 +285,23 @@ export default function WODManager() {
                         />
                     </div>
 
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">Video Link (optional)</label>
+                        <input
+                            type="url"
+                            placeholder="https://youtube.com/watch?v=..."
+                            value={formData.video_url}
+                            onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                            className="w-full bg-white border border-zinc-100 rounded-[1.5rem] px-8 py-5 text-zinc-700 font-semibold focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 transition-all placeholder:text-zinc-200 shadow-sm"
+                        />
+                        <p className="text-[9px] text-zinc-400 px-2 font-medium">💡 Add a YouTube link to show participants a demonstration video</p>
+                    </div>
+
                     <button
                         type="submit"
                         className="primary-glow w-full bg-[#FF5E00] text-white font-black italic text-2xl py-8 rounded-[2rem] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-4 font-heading"
                     >
-                        <Zap className="h-8 w-8 fill-active animate-pulse" /> BROADCAST MISSION
+                        <Zap className="h-8 w-8 fill-active animate-pulse" /> Create Workout
                     </button>
                 </form>
             )}

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus } from 'lucide-react';
+import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus, Settings, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ActivityConfiguration from './ActivityConfiguration';
+import MemberGoalAssignment from './MemberGoalAssignment';
 
 interface Group {
     id: string;
@@ -35,6 +37,8 @@ export default function GroupManager() {
     const [isAdding, setIsAdding] = useState(false);
     const [loading, setLoading] = useState(true);
     const [newGroupName, setNewGroupName] = useState('');
+    const [selectedSquad, setSelectedSquad] = useState<string | null>(null);
+    const [configTab, setConfigTab] = useState<'activities' | 'goals'>('activities');
 
     const fetchGroups = async () => {
         // In a real app, we'd use a more complex query or multiple calls to get counts
@@ -138,7 +142,7 @@ export default function GroupManager() {
                             isAdding ? "bg-zinc-100 text-zinc-500 shadow-none border border-zinc-200" : "bg-[#FF5E00] text-white"
                         )}
                     >
-                        {isAdding ? 'ABORT CREATION' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> COMMISSION SQUAD</>}
+                        {isAdding ? 'Cancel' : <><Plus className="h-5 w-5 group-hover/btn:rotate-90 transition-transform" /> Create Squad</>}
                     </button>
                 </div>
 
@@ -187,11 +191,15 @@ export default function GroupManager() {
                                 </button>
                             </div>
 
-                            <div className="flex items-center justify-between pt-2">
-                                <div className="flex items-center gap-3 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200/50">
-                                    <Users className="h-4 w-4 text-zinc-400" />
-                                    <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">{group.member_count} UNITS</span>
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setSelectedSquad(group.id)}
+                                    className="px-3 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all font-black uppercase text-xs flex items-center gap-2"
+                                    title="Configure Activities & Goals"
+                                >
+                                    <Settings className="h-4 w-4" />
+                                    Config
+                                </button>
                                 {group.pending_count! > 0 && (
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FF5E00]/10 border border-[#FF5E00]/20 shadow-sm animate-pulse">
                                         <div className="h-1.5 w-1.5 rounded-full bg-[#FF5E00]" />
@@ -214,7 +222,7 @@ export default function GroupManager() {
                         <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
                             APPROVAL <span className="text-emerald-500">QUEUE</span>
                         </h2>
-                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Pending Deployment Authorizations</p>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Waiting for Approval</p>
                     </div>
                 </div>
 
@@ -258,6 +266,62 @@ export default function GroupManager() {
                     </div>
                 )}
             </section>
+
+            {/* Squad Configuration Modal */}
+            {selectedSquad && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedSquad(null)}>
+                    <div className="bg-white rounded-[3rem] max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="sticky top-0 bg-white p-8 border-b border-zinc-100 rounded-t-[3rem] z-10">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 className="text-2xl font-black italic uppercase text-zinc-900">
+                                        {groups.find(g => g.id === selectedSquad)?.name} Config
+                                    </h3>
+                                    <p className="text-sm text-zinc-500">Configure activities and goals</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedSquad(null)}
+                                    className="h-12 w-12 rounded-xl bg-zinc-50 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center"
+                                >
+                                    <X className="h-6 w-6" />
+                                </button>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setConfigTab('activities')}
+                                    className={cn(
+                                        "px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2",
+                                        configTab === 'activities' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                                    )}
+                                >
+                                    <Settings className="h-4 w-4" />
+                                    Activities
+                                </button>
+                                <button
+                                    onClick={() => setConfigTab('goals')}
+                                    className={cn(
+                                        "px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2",
+                                        configTab === 'goals' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                                    )}
+                                >
+                                    <Target className="h-4 w-4" />
+                                    Goals
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-8">
+                            {configTab === 'activities' && (
+                                <ActivityConfiguration squadId={selectedSquad} squadName={groups.find(g => g.id === selectedSquad)?.name || ''} />
+                            )}
+                            {configTab === 'goals' && (
+                                <MemberGoalAssignment squadId={selectedSquad} squadName={groups.find(g => g.id === selectedSquad)?.name || ''} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1,89 +1,286 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Flame, Calendar, Info } from 'lucide-react';
-import { format } from 'date-fns';
+import { Calendar, Dumbbell, Clock, Repeat, Timer, Package, Video, AlertCircle } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import DashboardNav from '@/components/DashboardNav';
+import YouTubeEmbed from '@/components/YouTubeEmbed';
 
-interface WOD {
+interface Exercise {
     id: string;
-    title: string;
-    description: string;
-    type: string;
+    order_index: number;
+    exercise_name: string;
+    sets: number | null;
+    reps: number | null;
+    duration_seconds: number | null;
+    rest_seconds: number;
+    equipment: string;
+    video_url: string;
+    notes: string;
 }
 
-export default function WodPage() {
+interface WorkoutTemplate {
+    id: string;
+    name: string;
+    description: string;
+    type: 'weekday' | 'weekend' | 'event';
+}
+
+interface ScheduledWorkout {
+    id: string;
+    date: string;
+    template: WorkoutTemplate;
+    exercises: Exercise[];
+}
+
+export default function WODPage() {
+    const [workout, setWorkout] = useState<ScheduledWorkout | null>(null);
     const [loading, setLoading] = useState(true);
-    const [wod, setWod] = useState<WOD | null>(null);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchWOD = async () => {
-            const today = format(new Date(), 'yyyy-MM-dd');
-
-            // Fetch WOD for today
-            const { data, error } = await supabase
-                .from('wods')
-                .select('*')
-                .eq('date', today)
-                .limit(1)
-                .single();
-
-            if (error) {
-                console.log('No WOD found or error:', error.message);
-            } else {
-                setWod(data);
-            }
-            setLoading(false);
-        };
-        fetchWOD();
+        checkAuthAndFetchWOD();
     }, []);
 
-    if (loading) return (
-        <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-[#FF5E00]" />
-        </div>
-    );
+    const checkAuthAndFetchWOD = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            redirect('/');
+            return;
+        }
 
-    if (!wod) return (
-        <div>
-            <h1 className="text-3xl font-black italic uppercase text-zinc-900 mb-6">Workout of the Day</h1>
-            <div className="p-8 bg-white rounded-3xl border border-zinc-100 shadow-sm text-center py-20">
-                <div className="h-16 w-16 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Info className="h-8 w-8 text-zinc-300" />
+        const userId = session.user.id;
+
+        // Get user's group
+        const { data: groupMember } = await supabase
+            .from('group_members')
+            .select('group_id')
+            .eq('user_id', userId)
+            .eq('status', 'approved')
+            .single();
+
+        if (!groupMember) {
+            setError('You are not assigned to any squad yet.');
+            setLoading(false);
+            return;
+        }
+
+        // Get today's date
+        const today = new Date().toISOString().split('T')[0];
+
+        // Find scheduled workout for today assigned to user's squad
+        const { data: scheduledWorkouts } = await supabase
+            .from('scheduled_workout_squads')
+            .select(`
+                workout_id,
+                scheduled_workouts (
+                    id,
+                    date,
+                    template_id,
+                    workout_templates (
+                        id,
+                        name,
+                        description,
+                        type
+                    )
+                )
+            `)
+            .eq('group_id', groupMember.group_id);
+
+        if (!scheduledWorkouts || scheduledWorkouts.length === 0) {
+            setError('No workout scheduled for today.');
+            setLoading(false);
+            return;
+        }
+
+        // Find today's workout from the results
+        const todayWorkout = scheduledWorkouts.find((sw: any) =>
+            sw.scheduled_workouts?.date === today
+        );
+
+        if (!todayWorkout || !todayWorkout.scheduled_workouts) {
+            setError('No workout scheduled for today.');
+            setLoading(false);
+            return;
+        }
+
+        const swData: any = todayWorkout.scheduled_workouts;
+        const templateData: any = swData.workout_templates;
+
+        // Fetch exercises for the template
+        const { data: exercises } = await supabase
+            .from('workout_exercises')
+            .select('*')
+            .eq('template_id', templateData.id)
+            .order('order_index');
+
+        setWorkout({
+            id: swData.id,
+            date: swData.date,
+            template: {
+                id: templateData.id,
+                name: templateData.name,
+                description: templateData.description,
+                type: templateData.type
+            },
+            exercises: exercises || []
+        });
+
+        setLoading(false);
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-white">
+                <DashboardNav />
+                <div className="max-w-4xl mx-auto p-6 flex items-center justify-center min-h-[60vh]">
+                    <div className="text-center">
+                        <div className="h-12 w-12 border-4 border-[#FF5E00] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-sm font-black uppercase text-zinc-400 tracking-widest">Loading Workout...</p>
+                    </div>
                 </div>
-                <h3 className="text-lg font-black italic text-zinc-900 uppercase">Rest Day</h3>
-                <p className="text-zinc-400 text-sm mt-2">No mission scheduled for today. Recover active.</p>
             </div>
-        </div>
-    );
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-white">
+                <DashboardNav />
+                <div className="max-w-4xl mx-auto p-6">
+                    <div className="premium-card rounded-[3rem] p-12 text-center">
+                        <AlertCircle className="h-16 w-16 text-orange-400 mx-auto mb-4" />
+                        <h2 className="text-2xl font-black italic uppercase text-zinc-900 mb-2">No Workout Today</h2>
+                        <p className="text-zinc-600">{error}</p>
+                        <p className="text-sm text-zinc-400 mt-4">Check back tomorrow or contact your admin.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!workout) return null;
 
     return (
-        <div className="animate-in fade-in duration-500 pb-20">
-            <div className="flex items-center justify-between mb-8">
-                <h1 className="text-3xl font-black italic uppercase text-zinc-900">Workout of the Day</h1>
-                <div className="px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-[#FF5E00]" />
-                    <span className="text-xs font-black uppercase text-zinc-400">{format(new Date(), 'MMM dd, yyyy')}</span>
-                </div>
-            </div>
+        <div className="min-h-screen bg-white">
+            <DashboardNav />
 
-            <div className="bg-white rounded-[2.5rem] border border-zinc-100 shadow-sm overflow-hidden">
-                <div className="bg-[#FF5E00] p-8 text-white">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
-                            <Flame className="h-6 w-6 text-white" />
+            <div className="max-w-4xl mx-auto p-6 space-y-6">
+                {/* Header */}
+                <div className="premium-card rounded-[3rem] p-10 bg-gradient-to-br from-[#FF5E00] to-orange-600 text-white relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Calendar className="h-6 w-6" />
+                            <span className="text-sm font-black uppercase tracking-wider">
+                                {new Date(workout.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            </span>
                         </div>
-                        <span className="text-xs font-black uppercase tracking-widest text-orange-100">Daily Mission</span>
+                        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter mb-3">
+                            {workout.template.name}
+                        </h1>
+                        {workout.template.description && (
+                            <p className="text-orange-100 text-lg font-medium">
+                                {workout.template.description}
+                            </p>
+                        )}
+                        <div className="mt-4">
+                            <span className="px-4 py-2 rounded-xl bg-white/20 backdrop-blur-sm text-sm font-black uppercase">
+                                {workout.template.type} WOD
+                            </span>
+                        </div>
                     </div>
-                    <h2 className="text-3xl lg:text-4xl font-black italic uppercase tracking-tighter">{wod.title}</h2>
                 </div>
 
-                <div className="p-8 lg:p-12">
-                    <div className="prose prose-zinc max-w-none">
-                        <pre className="whitespace-pre-wrap font-sans text-base lg:text-lg text-zinc-600 leading-relaxed font-medium">
-                            {wod.description}
-                        </pre>
-                    </div>
+                {/* Exercises List */}
+                <div className="space-y-4">
+                    <h2 className="text-2xl font-black italic uppercase text-zinc-900 px-4">
+                        Exercises ({workout.exercises.length})
+                    </h2>
+
+                    {workout.exercises.map((exercise, index) => (
+                        <div key={exercise.id} className="premium-card rounded-[2rem] p-6 hover:scale-[1.01] transition-all">
+                            <div className="flex items-start gap-4">
+                                {/* Exercise Number */}
+                                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#FF5E00] to-orange-600 text-white flex items-center justify-center font-black text-xl shrink-0">
+                                    {index + 1}
+                                </div>
+
+                                {/* Exercise Details */}
+                                <div className="flex-1 space-y-3">
+                                    <h3 className="text-xl font-black uppercase text-zinc-900">
+                                        {exercise.exercise_name}
+                                    </h3>
+
+                                    {/* Reps/Sets/Duration */}
+                                    <div className="flex flex-wrap gap-4">
+                                        {exercise.sets && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Repeat className="h-4 w-4 text-[#FF5E00]" />
+                                                <span className="font-black text-zinc-700">{exercise.sets}</span>
+                                                <span className="text-zinc-500">sets</span>
+                                            </div>
+                                        )}
+                                        {exercise.reps && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Dumbbell className="h-4 w-4 text-[#FF5E00]" />
+                                                <span className="font-black text-zinc-700">{exercise.reps}</span>
+                                                <span className="text-zinc-500">reps</span>
+                                            </div>
+                                        )}
+                                        {exercise.duration_seconds && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Timer className="h-4 w-4 text-[#FF5E00]" />
+                                                <span className="font-black text-zinc-700">{exercise.duration_seconds}s</span>
+                                                <span className="text-zinc-500">duration</span>
+                                            </div>
+                                        )}
+                                        {exercise.rest_seconds > 0 && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Clock className="h-4 w-4 text-blue-500" />
+                                                <span className="font-black text-zinc-700">{exercise.rest_seconds}s</span>
+                                                <span className="text-zinc-500">rest</span>
+                                            </div>
+                                        )}
+                                        {exercise.equipment && (
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <Package className="h-4 w-4 text-purple-500" />
+                                                <span className="font-semibold text-zinc-600">{exercise.equipment}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Notes */}
+                                    {exercise.notes && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                                            <p className="text-sm text-amber-900 font-medium">
+                                                💡 {exercise.notes}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Video */}
+                                    {exercise.video_url && (
+                                        <div className="mt-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Video className="h-4 w-4 text-red-500" />
+                                                <span className="text-xs font-black uppercase text-zinc-500">Video Guide</span>
+                                            </div>
+                                            <YouTubeEmbed url={exercise.video_url} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Summary Footer */}
+                <div className="premium-card rounded-[2rem] p-6 bg-gradient-to-r from-emerald-50 to-blue-50">
+                    <p className="text-center text-sm font-black uppercase text-zinc-600 tracking-wider">
+                        💪 Complete all exercises to earn your daily points!
+                    </p>
                 </div>
             </div>
         </div>

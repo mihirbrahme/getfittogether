@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy } from 'lucide-react';
+import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy, Sparkles, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EventScheduler from '@/components/admin/EventScheduler';
 import WODManager from '@/components/admin/WODManager';
 import GroupManager from '@/components/admin/GroupManager';
-import LibraryManager from '@/components/admin/LibraryManager';
+import EnhancedLibraryManager from '@/components/admin/EnhancedLibraryManager';
+import BulkWODScheduler from '@/components/admin/BulkWODScheduler';
+import WODCalendar from '@/components/admin/WODCalendar';
+import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
+import OverviewDashboard from '@/components/admin/OverviewDashboard';
 import { cn } from '@/lib/utils';
 
 export default function AdminPage() {
@@ -55,10 +59,11 @@ export default function AdminPage() {
 
     const tabs = [
         { id: 'overview', label: 'OVERVIEW', icon: LayoutDashboard },
-        { id: 'wods', label: 'WOD ENGINE', icon: Activity },
-        { id: 'library', label: 'LIBRARY', icon: Database },
+        { id: 'analytics', label: 'ANALYTICS', icon: TrendingUp },
+        { id: 'library', label: 'WOD LIBRARY', icon: Database },
+        { id: 'calendar', label: 'CALENDAR', icon: Calendar },
         { id: 'groups', label: 'SQUADS', icon: Users },
-        { id: 'events', label: 'EVENTS', icon: Calendar },
+        { id: 'events', label: 'EVENTS', icon: Activity },
     ];
 
     if (loading) {
@@ -125,7 +130,6 @@ export default function AdminPage() {
             {/* Main Content Area */}
             <main className="flex-1 ml-80 p-16">
                 <div className="max-w-6xl mx-auto space-y-16">
-                    {/* Page Header */}
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
@@ -139,50 +143,19 @@ export default function AdminPage() {
 
                         <div className="flex items-center gap-6">
                             <div className="bg-zinc-50 px-6 py-3 rounded-2xl flex items-center gap-4 border border-zinc-100 shadow-sm">
-                                <ShieldAlert className="h-5 w-5 text-[#FF5E00]" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Tier 1 Clearance Granted</span>
+                                {/* Additional content or controls can go here */}
                             </div>
                         </div>
                     </div>
 
                     {/* Tab Content */}
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        {activeTab === 'overview' && <OverviewDashboard onNavigate={setActiveTab} />}
+                        {activeTab === 'analytics' && <AnalyticsDashboard />}
+                        {activeTab === 'library' && <EnhancedLibraryManager />}
+                        {activeTab === 'calendar' && <WODCalendar />}
                         {activeTab === 'events' && <EventScheduler />}
-                        {activeTab === 'wods' && <WODManager />}
                         {activeTab === 'groups' && <GroupManager />}
-                        {activeTab === 'library' && <LibraryManager />}
-                        {activeTab === 'overview' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                                {[
-                                    { label: 'Active Participants', value: '42', delta: '+12%', icon: Users },
-                                    { label: 'Total XP Earned', value: '4.2k', delta: '+8%', icon: Trophy },
-                                    { label: 'Completion Rate', value: '78%', delta: '-2%', icon: Activity },
-                                    { label: 'Live Squads', value: '5', delta: '0', icon: Database },
-                                ].map((stat, i) => (
-                                    <div key={i} className="premium-card rounded-[3rem] p-8 group cursor-default relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF5E00]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 -z-10 group-hover:bg-[#FF5E00]/10 transition-colors" />
-
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="h-12 w-12 bg-zinc-50 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:text-[#FF5E00] group-hover:bg-white group-hover:shadow-md transition-all duration-500">
-                                                <stat.icon className="h-6 w-6" />
-                                            </div>
-                                            <span className={cn(
-                                                "text-[9px] font-black uppercase px-3 py-1 rounded-full",
-                                                stat.delta.startsWith('+') ? "bg-emerald-50 text-emerald-600" : (stat.delta === '0' ? "bg-zinc-100 text-zinc-400" : "bg-red-50 text-red-500")
-                                            )}>
-                                                {stat.delta}
-                                            </span>
-                                        </div>
-                                        <span className="text-4xl font-black text-zinc-900 italic block mb-2 font-heading tracking-tighter">{stat.value}</span>
-                                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{stat.label}</span>
-                                    </div>
-                                ))}
-
-                                <div className="col-span-full py-20 text-center rounded-[3.5rem] border-2 border-dashed border-zinc-100 bg-zinc-50/50">
-                                    <h3 className="text-zinc-300 font-black uppercase tracking-[0.5em] text-[10px]">Neural Analytics Engine Standby</h3>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </main>

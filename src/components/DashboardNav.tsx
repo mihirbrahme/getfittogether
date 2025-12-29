@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, ClipboardList, CheckCircle, Users } from 'lucide-react';
+import { Home, ClipboardList, CheckCircle, Users, Target, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -10,6 +10,8 @@ const navItems = [
     { name: 'WOD', href: '/dashboard/wod', icon: ClipboardList },
     { name: 'Check-In', href: '/dashboard/check-in', icon: CheckCircle },
     { name: 'Squad', href: '/dashboard/squad', icon: Users },
+    { name: 'Goals', href: '/dashboard/goals', icon: Target },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export default function DashboardNav() {

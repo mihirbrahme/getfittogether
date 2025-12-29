@@ -68,8 +68,30 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
 
         try {
             if (mode === 'login') {
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
+                // Login
+                const { data: authData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+                if (loginError) throw loginError;
+
+                if (authData.user) {
+                    // Check user's role and status
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('role, status')
+                        .eq('id', authData.user.id)
+                        .single();
+
+                    if (profileError) throw profileError;
+
+                    // Redirect based on role and status
+                    if (profile.status === 'pending') {
+                        router.push('/pending-approval');
+                    } else if (profile.role === 'admin') {
+                        router.push('/admin');
+                    } else {
+                        router.push('/dashboard');
+                    }
+                    return;
+                }
             } else {
                 // Registration Logic
                 if (selectedGoals.length !== 2) throw new Error('Please select exactly 2 goals.');
@@ -127,11 +149,10 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                         status: 'approved'
                     });
                 if (joinError) console.error('Team Join Error:', joinError);
-                if (joinError) console.error('Team Join Error:', joinError);
-            }
 
-            // Redirect to dashboard on success
-            router.push('/dashboard');
+                // Redirect to dashboard after registration
+                router.push('/dashboard');
+            }
         } catch (err: any) {
             setError(err.message === 'Invalid login credentials' ? 'Invalid email or password.' : err.message);
         } finally {

@@ -10,6 +10,7 @@ interface LibraryWorkout {
     title: string;
     description: string;
     type: 'weekday' | 'weekend' | 'event';
+    video_url?: string;
 }
 
 export default function LibraryManager() {
@@ -22,6 +23,7 @@ export default function LibraryManager() {
         title: '',
         description: '',
         type: 'weekday',
+        video_url: '',
     });
 
     const fetchLibrary = async () => {
@@ -158,6 +160,16 @@ export default function LibraryManager() {
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             className="w-full bg-white border border-zinc-100 rounded-[2rem] px-8 py-6 text-zinc-900 font-black text-xs leading-relaxed focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 resize-none transition-all shadow-sm uppercase tracking-widest"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-2">VIDEO DEMONSTRATION</label>
+                        <input
+                            type="url"
+                            placeholder="https://youtube.com/watch?v=... (Optional)"
+                            value={formData.video_url}
+                            onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                            className="w-full bg-white border border-zinc-100 rounded-[1.5rem] px-8 py-4 text-zinc-700 font-semibold focus:outline-none focus:border-indigo-500/30 focus:ring-8 focus:ring-indigo-500/5 transition-all shadow-sm"
                         />
                     </div>
                     <button
