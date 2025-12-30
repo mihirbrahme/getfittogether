@@ -2,36 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, X, GripVertical, Trash2, Save, Edit2, Copy, Tag as TagIcon, Loader2 } from 'lucide-react';
+import { Plus, Search, X, Trash2, Save, Edit2, Copy, Tag as TagIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Exercise {
-    id?: string;
-    order_index: number;
-    exercise_name: string;
-    sets: number | null;
-    reps: number | null;
-    duration_seconds: number | null;
-    rest_seconds: number;
-    equipment: string;
-    video_url: string;
-    notes: string;
-}
-
-interface WorkoutTemplate {
-    id?: string;
-    name: string;
-    description: string;
-    type: 'weekday' | 'weekend' | 'event';
-    tags: string[];
-    exercises?: Exercise[];
-}
-
-const PREDEFINED_TAGS = [
-    'Beginner', 'Intermediate', 'Advanced',
-    'Upper Body', 'Lower Body', 'Core', 'Full Body',
-    'Strength', 'Cardio', 'HIIT', 'Recovery', 'Flexibility'
-];
+import { Exercise, WorkoutTemplate, PREDEFINED_TAGS } from './library/types';
+import ExerciseFormRow from './library/ExerciseFormRow';
 
 export default function EnhancedLibraryManager() {
     const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -535,122 +509,16 @@ export default function EnhancedLibraryManager() {
 
                             <div className="space-y-4">
                                 {formData.exercises?.map((exercise, index) => (
-                                    <div
+                                    <ExerciseFormRow
                                         key={index}
-                                        draggable
-                                        onDragStart={() => handleDragStart(index)}
-                                        onDragOver={(e) => handleDragOver(e, index)}
+                                        exercise={exercise}
+                                        index={index}
+                                        onUpdate={updateExercise}
+                                        onDelete={deleteExercise}
+                                        onDragStart={handleDragStart}
+                                        onDragOver={handleDragOver}
                                         onDragEnd={() => setDraggedIndex(null)}
-                                        className="bg-white border-2 border-zinc-200 rounded-2xl p-6 cursor-move hover:border-[#FF5E00] transition-all"
-                                    >
-                                        <div className="flex items-start gap-4">
-                                            <div className="flex items-center gap-3 shrink-0">
-                                                <GripVertical className="h-5 w-5 text-zinc-400" />
-                                                <div className="h-8 w-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-black">
-                                                    {index + 1}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="md:col-span-2">
-                                                    <input
-                                                        type="text"
-                                                        value={exercise.exercise_name}
-                                                        onChange={(e) => updateExercise(index, 'exercise_name', e.target.value)}
-                                                        placeholder="Exercise name (e.g., Push-ups)"
-                                                        className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm font-bold"
-                                                    />
-                                                </div>
-
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="block text-xs font-black text-zinc-500 mb-1">Sets/Cycles</label>
-                                                        <input
-                                                            type="number"
-                                                            value={exercise.sets || ''}
-                                                            onChange={(e) => updateExercise(index, 'sets', parseInt(e.target.value) || null)}
-                                                            className="w-full px-2 py-1.5 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-black text-zinc-500 mb-1">Reps</label>
-                                                        <input
-                                                            type="number"
-                                                            value={exercise.reps || ''}
-                                                            onChange={(e) => updateExercise(index, 'reps', parseInt(e.target.value) || null)}
-                                                            disabled={!!exercise.duration_seconds}
-                                                            className="w-full px-2 py-1.5 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm disabled:bg-zinc-100"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-black text-zinc-500 mb-1">Time (s)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={exercise.duration_seconds || ''}
-                                                            onChange={(e) => {
-                                                                const val = parseInt(e.target.value) || null;
-                                                                updateExercise(index, 'duration_seconds', val);
-                                                                if (val) updateExercise(index, 'reps', null);
-                                                            }}
-                                                            disabled={!!exercise.reps}
-                                                            className="w-full px-2 py-1.5 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm disabled:bg-zinc-100"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="block text-xs font-black text-zinc-500 mb-1">Rest (s)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={exercise.rest_seconds}
-                                                            onChange={(e) => updateExercise(index, 'rest_seconds', parseInt(e.target.value))}
-                                                            className="w-full px-2 py-1.5 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-black text-zinc-500 mb-1">Equipment</label>
-                                                        <input
-                                                            type="text"
-                                                            value={exercise.equipment}
-                                                            onChange={(e) => updateExercise(index, 'equipment', e.target.value)}
-                                                            placeholder="None"
-                                                            className="w-full px-2 py-1.5 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-black text-zinc-500 mb-1">Video URL (optional)</label>
-                                                    <input
-                                                        type="text"
-                                                        value={exercise.video_url}
-                                                        onChange={(e) => updateExercise(index, 'video_url', e.target.value)}
-                                                        placeholder="YouTube link..."
-                                                        className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm"
-                                                    />
-                                                </div>
-
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-black text-zinc-500 mb-1">Notes</label>
-                                                    <textarea
-                                                        value={exercise.notes}
-                                                        onChange={(e) => updateExercise(index, 'notes', e.target.value)}
-                                                        placeholder="Form cues, modifications..."
-                                                        rows={2}
-                                                        className="w-full px-3 py-2 rounded-lg border border-zinc-300 focus:border-[#FF5E00] focus:outline-none text-sm resize-none"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                onClick={() => deleteExercise(index)}
-                                                className="shrink-0 h-8 w-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-all flex items-center justify-center"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    />
                                 ))}
 
                                 {formData.exercises?.length === 0 && (
