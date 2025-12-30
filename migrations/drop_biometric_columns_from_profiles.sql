@@ -1,11 +1,14 @@
 -- Migration: Remove redundant biometric columns from profiles table
 -- These columns are now managed in biometric_logs table
 
--- Step 1: First ensure biometric_logs has all necessary data
--- (Data was already migrated in create_biometrics_audit_tables.sql)
+-- Step 1: Drop the BMI trigger that depends on weight column
+DROP TRIGGER IF EXISTS trigger_auto_calculate_bmi_profile ON profiles;
 
--- Step 2: Drop the redundant columns from profiles
--- Note: Keep 'height' as it's a relatively static measurement often needed for BMI calculation
+-- Step 2: Drop the function that powered the trigger (cleanup)
+DROP FUNCTION IF EXISTS calculate_bmi_on_profile_update();
+
+-- Step 3: Drop the redundant columns from profiles
+-- Note: Keep 'height' as it's a relatively static measurement often needed for display
 -- Remove: weight, body_fat_percentage, muscle_mass_percentage, bmi
 
 ALTER TABLE profiles DROP COLUMN IF EXISTS weight;
