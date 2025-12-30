@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Check, X, Target, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import DateDisplay from '@/components/DateDisplay';
+import { logCheckIn } from '@/lib/auditLog';
 
 interface CheckInActivity {
     id: string;
@@ -169,10 +171,11 @@ export default function CheckInPage() {
                 .update({ total_points: (profile?.total_points || 0) + totalPoints })
                 .eq('id', user.id);
 
-            alert(`Check-in complete! You earned ${totalPoints} points today.`);
+            // Log audit event
+            await logCheckIn(user.id, today, totalPoints);
+
             setAlreadySubmitted(true);
-        } else {
-            alert('Error submitting check-in: ' + error.message);
+            alert(`Check-in saved! You earned ${totalPoints} points today! 🎉`);
         }
 
         setSubmitting(false);
@@ -197,16 +200,19 @@ export default function CheckInPage() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-20">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-black italic uppercase text-zinc-900 tracking-tighter">
-                    Daily <span className="text-[#FF5E00]">Check-In</span>
-                </h1>
-                <p className="text-zinc-500 font-medium text-sm mt-1">
-                    {alreadySubmitted
-                        ? 'Done for today! Come back tomorrow.'
-                        : 'Track your daily progress'
-                    }
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-black italic uppercase text-zinc-900 tracking-tighter">
+                        Daily <span className="text-[#FF5E00]">Check-In</span>
+                    </h1>
+                    <p className="text-zinc-500 font-medium text-sm mt-1">
+                        {alreadySubmitted
+                            ? `Already checked in for ${format(new Date(), 'MMMM d')}!`
+                            : 'Track your daily progress'
+                        }
+                    </p>
+                </div>
+                <DateDisplay />
             </div>
 
             {/* Activities Section */}

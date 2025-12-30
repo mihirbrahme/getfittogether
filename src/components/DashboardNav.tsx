@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ClipboardList, CheckCircle, Users, Target, Settings, LogOut } from 'lucide-react';
+import { Home, ClipboardList, CheckCircle, Users, Target, Settings, LogOut, TrendingUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +11,8 @@ const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'WOD', href: '/dashboard/wod', icon: ClipboardList },
     { name: 'Check-In', href: '/dashboard/check-in', icon: CheckCircle },
+    { name: 'Progress', href: '/dashboard/progress', icon: TrendingUp },
+    { name: 'History', href: '/dashboard/history', icon: Calendar },
     { name: 'Squad', href: '/dashboard/squad', icon: Users },
     { name: 'Goals', href: '/dashboard/goals', icon: Target },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Check, Calendar, ArrowRight, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, differenceInDays, addDays, subDays, startOfDay } from 'date-fns';
+import DateDisplay from '@/components/DateDisplay';
 
 const TOTAL_DAYS = 70;
 
@@ -108,9 +109,7 @@ export default function Dashboard() {
                         Keep going, <br /><span className="text-[#FF5E00]">{firstName}</span>.
                     </h1>
                 </div>
-                <div className="h-12 w-12 bg-zinc-100 rounded-full border border-zinc-200 flex items-center justify-center">
-                    <span className="font-black text-zinc-400">{firstName[0]}</span>
-                </div>
+                <DateDisplay />
             </div>
 
             {/* Stats Grid */}
