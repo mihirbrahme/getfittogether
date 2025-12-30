@@ -54,13 +54,13 @@ export default function OverviewDashboard({ onNavigate }: OverviewDashboardProps
                 .select('*', { count: 'exact', head: true })
                 .eq('status', 'pending');
 
-            // 4. Today's WOD exists
+            // 4. Today's WOD exists (check scheduled_workouts instead of wods)
             const { data: todayWod } = await supabase
-                .from('wods')
+                .from('scheduled_workouts')
                 .select('id')
                 .eq('date', today)
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             // 5. Today's Check-ins
             const { count: checkIns } = await supabase
