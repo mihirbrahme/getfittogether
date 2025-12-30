@@ -50,8 +50,32 @@ export default function WODPage() {
             return;
         }
 
-        const userId = session.user.id;
+        // OPTIMIZED: Try RPC first (single query instead of 4)
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_wod_today');
 
+        if (!rpcError && rpcData && rpcData.found) {
+            // RPC succeeded - use optimized data
+            setWorkout({
+                id: rpcData.workout.id,
+                date: rpcData.date,
+                template: {
+                    id: rpcData.workout.template_id,
+                    name: rpcData.workout.name,
+                    description: rpcData.workout.description,
+                    type: rpcData.workout.type
+                },
+                exercises: rpcData.exercises || []
+            });
+            setLoading(false);
+            return;
+        }
+
+        // FALLBACK: Legacy queries if RPC fails or returns null
+        await fetchWODLegacy(session.user.id);
+    };
+
+    // Legacy fallback for backwards compatibility
+    const fetchWODLegacy = async (userId: string) => {
         // Get user's group
         const { data: groupMember } = await supabase
             .from('group_members')
