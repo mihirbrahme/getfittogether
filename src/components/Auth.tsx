@@ -107,8 +107,7 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
 
                 const userId = authData.user.id;
 
-                // 2. Create/Update Profile with Biometrics (UPSERT)
-                // Use UPSERT instead of UPDATE since trigger might not work
+                // 2. Create/Update Profile (UPSERT) - WITHOUT biometric columns
                 const { error: profileError } = await supabase
                     .from('profiles')
                     .upsert({
@@ -117,19 +116,29 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                         last_name: lastName,
                         full_name: `${firstName} ${lastName}`,
                         display_name: firstName,
-                        height: parseFloat(height),
-                        weight: parseFloat(weight),
-                        body_fat_percentage: parseFloat(bodyFat) || null,
-                        muscle_mass_percentage: parseFloat(muscleMass) || null,
+                        height: parseFloat(height), // Keep height in profiles (static measurement)
                         role: 'participant',
                         status: 'pending',
                         total_points: 0
-                        // BMI will be auto-calculated by trigger
                     });
 
                 if (profileError) console.error('Profile Update Error:', profileError);
 
-                // 3. Squad Assignment
+                // 3. Insert initial biometric data into biometric_logs
+                const { error: biometricError } = await supabase
+                    .from('biometric_logs')
+                    .insert({
+                        user_id: userId,
+                        weight_kg: parseFloat(weight) || null,
+                        height_cm: parseFloat(height) || null,
+                        body_fat_percentage: parseFloat(bodyFat) || null,
+                        muscle_mass_percentage: parseFloat(muscleMass) || null
+                        // BMI will be auto-calculated by trigger if exists
+                    });
+
+                if (biometricError) console.error('Biometric Log Error:', biometricError);
+
+                // 4. Squad Assignment
                 const { error: joinError } = await supabase
                     .from('group_members')
                     .insert({

@@ -40,19 +40,35 @@ export default function OnboardingWizard({ userId, onComplete }: OnboardingWizar
 
     const handleSubmit = async () => {
         setLoading(true);
-        const { error } = await supabase
+
+        // Update profile (without weight - that goes to biometric_logs)
+        const { error: profileError } = await supabase
             .from('profiles')
             .update({
                 age: parseInt(data.age),
-                height: data.height,
-                weight: data.weight,
+                height: data.height, // Keep height in profiles (static measurement)
                 fitness_level: data.fitness_level,
                 injuries: data.injuries,
-                status: 'approved' // Auto-approve after onboarding for now, or 'pending' if admin review needed
+                status: 'approved'
             })
             .eq('id', userId);
 
-        if (!error) {
+        if (profileError) console.error('Profile Update Error:', profileError);
+
+        // Insert biometric data into biometric_logs
+        if (data.weight) {
+            const { error: biometricError } = await supabase
+                .from('biometric_logs')
+                .insert({
+                    user_id: userId,
+                    weight_kg: parseFloat(data.weight) || null,
+                    height_cm: parseFloat(data.height) || null
+                });
+
+            if (biometricError) console.error('Biometric Log Error:', biometricError);
+        }
+
+        if (!profileError) {
             onComplete();
         }
         setLoading(false);
