@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TrendingUp, Plus, Scale, Activity, Droplets, X, Loader2, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDate, formatTime } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 import { logBiometricUpdate } from '@/lib/auditLog';
 
@@ -185,7 +185,7 @@ export default function ProgressPage() {
                         </div>
 
                         <p className="text-sm opacity-70 mt-6">
-                            Last updated: {format(new Date(latestEntry.measured_at), 'MMMM d, yyyy')}
+                            Last updated: {formatDate(new Date(latestEntry.measured_at), 'long')}
                         </p>
                     </div>
                 </div>
@@ -298,10 +298,10 @@ export default function ProgressPage() {
                                         </div>
                                         <div>
                                             <p className="font-black text-zinc-900">
-                                                {format(new Date(entry.measured_at), 'MMM d, yyyy')}
+                                                {formatDate(new Date(entry.measured_at), 'short')}
                                             </p>
                                             <p className="text-sm text-zinc-400 font-medium">
-                                                {format(new Date(entry.measured_at), 'h:mm a')}
+                                                {formatTime(new Date(entry.measured_at))}
                                             </p>
                                         </div>
                                     </div>

@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Check, Calendar, ArrowRight, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, differenceInDays, addDays, subDays, startOfDay } from 'date-fns';
+import { getToday, differenceInDays, subDays, formatShortWeekday } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 
 const TOTAL_DAYS = 70;
@@ -66,7 +66,7 @@ export default function Dashboard() {
             const today = new Date();
             const last7Days = Array.from({ length: 7 }, (_, i) => {
                 const d = subDays(today, 6 - i);
-                return format(d, 'yyyy-MM-dd');
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             });
 
             const { data: logs } = await supabase
@@ -96,7 +96,7 @@ export default function Dashboard() {
 
     const weekLabels = Array.from({ length: 7 }, (_, i) => {
         const d = subDays(new Date(), 6 - i);
-        return format(d, 'EEE'); // Mon, Tue...
+        return formatShortWeekday(d); // Mon, Tue...
     });
 
     return (

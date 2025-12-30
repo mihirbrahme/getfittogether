@@ -1,11 +1,10 @@
 // Date display component for showing current date across dashboard pages
 
 import { Calendar } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDate } from '@/lib/dateUtils';
 
 export default function DateDisplay() {
-    const today = new Date();
-    const formattedDate = format(today, 'EEEE, MMMM d, yyyy');
+    const formattedDate = formatDate(new Date(), 'full');
 
     return (
         <div className="flex items-center gap-2 text-sm font-black uppercase text-zinc-600 tracking-wider">

@@ -74,6 +74,7 @@ export async function logCheckIn(userId: string, date: string, points: number) {
 
 /**
  * Convenience function to log biometric update
+ * NOTE: We only log field names, not values, to avoid PII in audit logs
  */
 export async function logBiometricUpdate(userId: string, biometricId: string, data: any) {
     await logAuditEvent({
@@ -81,7 +82,11 @@ export async function logBiometricUpdate(userId: string, biometricId: string, da
         action: 'biometrics_updated',
         resourceType: 'biometric_log',
         resourceId: biometricId,
-        details: data
+        details: {
+            fields_updated: Object.keys(data).filter(k => data[k] !== null),
+            record_id: biometricId,
+            timestamp: new Date().toISOString()
+        }
     });
 }
 

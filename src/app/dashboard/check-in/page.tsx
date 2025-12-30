@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Loader2, Check, X, Target, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { getToday, formatDate } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 import { logCheckIn } from '@/lib/auditLog';
 
@@ -45,11 +45,60 @@ export default function CheckInPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return router.push('/auth?mode=login');
 
-            // 1. Get user's squad
+            const today = getToday();
+
+            // OPTIMIZED: Single RPC call replaces 5 separate queries
+            const { data: context, error } = await supabase.rpc('get_checkin_context', {
+                p_date: today
+            });
+
+            if (error || !context) {
+                // Fallback: RPC not yet created, use legacy queries
+                await fetchDataLegacy(user.id, today);
+                return;
+            }
+
+            // Set activities from RPC response
+            const fetchedActivities = context.activities || [];
+            setActivities(fetchedActivities);
+
+            // Set goals from RPC response
+            const fetchedGoals = (context.goals || []).map((g: any) => ({
+                slot: g.slot,
+                goal_templates: g.goal_templates
+            }));
+            setAssignedGoals(fetchedGoals);
+
+            // Initialize responses
+            const initialResponses: Record<string, boolean | null> = {};
+            fetchedActivities.forEach((a: any) => initialResponses[`activity_${a.id}`] = null);
+            fetchedGoals.forEach((g: any) => initialResponses[`goal_${g.slot}`] = null);
+            setResponses(initialResponses);
+
+            // Check if already submitted
+            if (context.already_submitted) {
+                setAlreadySubmitted(true);
+                // Fetch existing responses for display
+                const { data: existingLog } = await supabase
+                    .from('daily_logs')
+                    .select('custom_logs')
+                    .eq('user_id', user.id)
+                    .eq('date', today)
+                    .single();
+                if (existingLog?.custom_logs) {
+                    setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+                }
+            }
+
+            setLoading(false);
+        };
+
+        // Legacy fallback for when RPC doesn't exist yet
+        const fetchDataLegacy = async (userId: string, today: string) => {
             const { data: membership } = await supabase
                 .from('group_members')
                 .select('group_id')
-                .eq('user_id', user.id)
+                .eq('user_id', userId)
                 .eq('status', 'approved')
                 .single();
 
@@ -58,7 +107,6 @@ export default function CheckInPage() {
                 return;
             }
 
-            // 2. Fetch squad's check-in activities
             const { data: squadActivities } = await supabase
                 .from('squad_checkin_activities')
                 .select('*')
@@ -73,19 +121,10 @@ export default function CheckInPage() {
                 setResponses(initialResponses);
             }
 
-            // 3. Fetch admin-assigned goals for this user
             const { data: userGoals } = await supabase
                 .from('user_goal_assignments')
-                .select(`
-                    slot,
-                    goal_templates (
-                        id,
-                        name,
-                        description,
-                        points
-                    )
-                `)
-                .eq('user_id', user.id)
+                .select(`slot, goal_templates (id, name, description, points)`)
+                .eq('user_id', userId)
                 .order('slot');
 
             if (userGoals) {
@@ -95,18 +134,15 @@ export default function CheckInPage() {
                 });
             }
 
-            // 4. Check if already logged today
-            const today = format(new Date(), 'yyyy-MM-dd');
             const { data: existingLog } = await supabase
                 .from('daily_logs')
                 .select('*')
-                .eq('user_id', user.id)
+                .eq('user_id', userId)
                 .eq('date', today)
                 .single();
 
             if (existingLog) {
                 setAlreadySubmitted(true);
-                // Parse custom_logs to show previous responses
                 if (existingLog.custom_logs) {
                     setResponses(existingLog.custom_logs as Record<string, boolean | null>);
                 }
@@ -114,6 +150,7 @@ export default function CheckInPage() {
 
             setLoading(false);
         };
+
         fetchData();
     }, [router]);
 
@@ -129,7 +166,7 @@ export default function CheckInPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const today = format(new Date(), 'yyyy-MM-dd');
+        const today = getToday();
 
         // Calculate total points
         let totalPoints = 0;
@@ -207,7 +244,7 @@ export default function CheckInPage() {
                     </h1>
                     <p className="text-zinc-500 font-medium text-sm mt-1">
                         {alreadySubmitted
-                            ? `Already checked in for ${format(new Date(), 'MMMM d')}!`
+                            ? `Already checked in for ${formatDate(new Date(), 'short')}!`
                             : 'Track your daily progress'
                         }
                     </p>

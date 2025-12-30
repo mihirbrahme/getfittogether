@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Calendar, TrendingUp, Users, History as HistoryIcon, CheckCircle, X } from 'lucide-react';
-import { format, formatDistance } from 'date-fns';
+import { formatDate, formatRelative } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 
 interface CheckInLog {
@@ -116,8 +116,8 @@ export default function HistoryPage() {
                 <button
                     onClick={() => setActiveTab('personal')}
                     className={`pb-4 px-6 font-black uppercase text-sm tracking-wider transition-colors ${activeTab === 'personal'
-                            ? 'text-[#FF5E00] border-b-2 border-[#FF5E00]'
-                            : 'text-zinc-400 hover:text-zinc-600'
+                        ? 'text-[#FF5E00] border-b-2 border-[#FF5E00]'
+                        : 'text-zinc-400 hover:text-zinc-600'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -128,8 +128,8 @@ export default function HistoryPage() {
                 <button
                     onClick={() => setActiveTab('squad')}
                     className={`pb-4 px-6 font-black uppercase text-sm tracking-wider transition-colors ${activeTab === 'squad'
-                            ? 'text-[#FF5E00] border-b-2 border-[#FF5E00]'
-                            : 'text-zinc-400 hover:text-zinc-600'
+                        ? 'text-[#FF5E00] border-b-2 border-[#FF5E00]'
+                        : 'text-zinc-400 hover:text-zinc-600'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -170,10 +170,10 @@ export default function HistoryPage() {
                                                 </div>
                                                 <div>
                                                     <p className="font-black text-zinc-900">
-                                                        {format(new Date(log.date), 'EEEE, MMMM d, yyyy')}
+                                                        {formatDate(new Date(log.date), 'full')}
                                                     </p>
                                                     <p className="text-sm text-zinc-400 font-medium">
-                                                        {formatDistance(new Date(log.date), new Date(), { addSuffix: true })}
+                                                        {formatRelative(new Date(log.date))}
                                                     </p>
                                                 </div>
                                             </div>
@@ -197,8 +197,8 @@ export default function HistoryPage() {
                                                     <div
                                                         key={key}
                                                         className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${value
-                                                                ? 'bg-emerald-50 text-emerald-600'
-                                                                : 'bg-red-50 text-red-600'
+                                                            ? 'bg-emerald-50 text-emerald-600'
+                                                            : 'bg-red-50 text-red-600'
                                                             }`}
                                                     >
                                                         {value ? '✓' : '✗'} {key.replace('activity_', '').replace('goal_', 'Goal ')}
@@ -240,7 +240,7 @@ export default function HistoryPage() {
                                                 {log.profiles.first_name} {log.profiles.last_name}
                                             </p>
                                             <p className="text-xs text-zinc-400 font-medium">
-                                                {format(new Date(log.date), 'MMM d, yyyy')}
+                                                {formatDate(new Date(log.date), 'short')}
                                             </p>
                                         </div>
                                         <div className="text-right">
