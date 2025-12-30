@@ -1,7 +1,7 @@
 // Data Export Utilities
 // Sprint 3 Task 5.2: Export functionality for admin data
 
-import { format } from 'date-fns';
+import { formatDate } from '@/lib/dateUtils';
 
 /**
  * Converts JSON data to CSV format
@@ -64,7 +64,7 @@ export interface WODExportData {
 
 export function exportWODSchedule(wods: WODExportData[]): void {
     const csv = jsonToCSV(wods, ['date', 'title', 'type', 'description', 'video_url']);
-    const filename = `wod-schedule-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `wod-schedule-${formatDate(new Date(), 'iso')}.csv`;
     downloadFile(csv, filename, 'text/csv');
 }
 
@@ -80,7 +80,7 @@ export interface ParticipantExportData {
 
 export function exportParticipants(participants: ParticipantExportData[]): void {
     const csv = jsonToCSV(participants, ['full_name', 'total_points', 'status', 'created_at']);
-    const filename = `participants-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `participants-${formatDate(new Date(), 'iso')}.csv`;
     downloadFile(csv, filename, 'text/csv');
 }
 
@@ -96,7 +96,7 @@ export interface LeaderboardExportData {
 
 export function exportLeaderboard(leaderboard: LeaderboardExportData[]): void {
     const csv = jsonToCSV(leaderboard, ['rank', 'name', 'squad', 'points']);
-    const filename = `leaderboard-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `leaderboard-${formatDate(new Date(), 'iso')}.csv`;
     downloadFile(csv, filename, 'text/csv');
 }
 
@@ -116,7 +116,7 @@ export interface DailyLogExportData {
 
 export function exportDailyLogs(logs: DailyLogExportData[]): void {
     const csv = jsonToCSV(logs);
-    const filename = `daily-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const filename = `daily-logs-${formatDate(new Date(), 'iso')}.csv`;
     downloadFile(csv, filename, 'text/csv');
 }
 
@@ -132,7 +132,7 @@ export function generateTextReport(data: {
 }): string {
     return `
 GET FIT TOGETHER - ADMIN REPORT
-Generated: ${format(new Date(), 'PPP')}
+Generated: ${formatDate(new Date(), 'full')}
 Date Range: ${data.dateRange}
 
 ═══════════════════════════════════════════

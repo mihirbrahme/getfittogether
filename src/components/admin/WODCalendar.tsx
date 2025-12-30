@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Edit2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek } from 'date-fns';
+import { formatDate, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, startOfWeek, endOfWeek, formatMonthYear } from '@/lib/dateUtils';
 import CalendarAssignModal from './CalendarAssignModal';
 
 interface WOD {
@@ -45,8 +45,8 @@ export default function WODCalendar() {
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
 
-        const startDate = format(monthStart, 'yyyy-MM-dd');
-        const endDate = format(monthEnd, 'yyyy-MM-dd');
+        const startDate = formatDate(monthStart, 'iso');
+        const endDate = formatDate(monthEnd, 'iso');
 
         // Fetch scheduled workouts with template info
         const { data: scheduledData } = await supabase
@@ -99,12 +99,12 @@ export default function WODCalendar() {
     const goToToday = () => setCurrentMonth(new Date());
 
     const getWorkoutForDate = (date: Date) => {
-        const dateStr = format(date, 'yyyy-MM-dd');
+        const dateStr = formatDate(date, 'iso');
         return scheduledWorkouts.find(w => w.date === dateStr);
     };
 
     const getEventForDate = (date: Date) => {
-        const dateStr = format(date, 'yyyy-MM-dd');
+        const dateStr = formatDate(date, 'iso');
         return events.find(e => e.date === dateStr);
     };
 
@@ -160,7 +160,7 @@ export default function WODCalendar() {
             {/* Current Month Display */}
             <div className="text-center mb-8">
                 <h3 className="text-5xl font-black italic text-zinc-900 font-heading uppercase tracking-tighter">
-                    {format(currentMonth, 'MMMM')} <span className="text-blue-500">{format(currentMonth, 'yyyy')}</span>
+                    {formatMonthYear(currentMonth).split(' ')[0]} <span className="text-blue-500">{currentMonth.getFullYear()}</span>
                 </h3>
             </div>
 
@@ -190,7 +190,7 @@ export default function WODCalendar() {
                                     if (workout) {
                                         // Handle view/edit existing workout
                                     } else if (inCurrentMonth) {
-                                        setSelectedDate(format(day, 'yyyy-MM-dd'));
+                                        setSelectedDate(formatDate(day, 'iso'));
                                         setShowAssignModal(true);
                                     }
                                 }}
@@ -213,7 +213,7 @@ export default function WODCalendar() {
                                         "text-sm font-black mb-1",
                                         workout ? "text-white" : event ? "text-orange-600" : "text-zinc-600"
                                     )}>
-                                        {format(day, 'd')}
+                                        {day.getDate()}
                                     </span>
 
                                     {/* Workout Indicator */}

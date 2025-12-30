@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Calendar, Sparkles, AlertTriangle, CheckCircle2, X, Plus, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays, eachDayOfInterval } from 'date-fns';
+import { formatDate, addDays, eachDayOfInterval } from '@/lib/dateUtils';
 
 interface LibraryWorkout {
     id: string;
@@ -32,8 +32,8 @@ export default function BulkWODScheduler() {
     const [library, setLibrary] = useState<LibraryWorkout[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
     const [selectedWorkouts, setSelectedWorkouts] = useState<string[]>([]);
-    const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [endDate, setEndDate] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
+    const [startDate, setStartDate] = useState(formatDate(new Date(), 'iso'));
+    const [endDate, setEndDate] = useState(formatDate(addDays(new Date(), 7), 'iso'));
     const [strategy, setStrategy] = useState<AssignmentStrategy>('sequential');
     const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
     const [preview, setPreview] = useState<SchedulePreview[]>([]);
@@ -84,7 +84,7 @@ export default function BulkWODScheduler() {
         const selectedWorkoutObjects = library.filter(w => selectedWorkouts.includes(w.id));
 
         dateRange.forEach((date, index) => {
-            const dateStr = format(date, 'yyyy-MM-dd');
+            const dateStr = formatDate(date, 'iso');
             let workout: LibraryWorkout;
 
             switch (strategy) {
@@ -312,11 +312,11 @@ export default function BulkWODScheduler() {
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center">
-                                        <span className="text-xs font-black text-purple-600">{format(new Date(item.date), 'dd')}</span>
+                                        <span className="text-xs font-black text-purple-600">{new Date(item.date).getDate()}</span>
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xs font-black text-zinc-600">{format(new Date(item.date), 'MMM dd, yyyy')}</span>
+                                            <span className="text-xs font-black text-zinc-600">{formatDate(new Date(item.date), 'short')}</span>
                                             {item.exists && (
                                                 <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-orange-200 text-orange-700">EXISTS</span>
                                             )}

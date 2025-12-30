@@ -124,3 +124,101 @@ export function addDays(date: Date, days: number): Date {
 export function formatShortWeekday(date: Date): string {
     return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date);
 }
+
+// =====================================================
+// CALENDAR UTILITIES (for admin components)
+// =====================================================
+
+/**
+ * Get the first day of a month
+ */
+export function startOfMonth(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/**
+ * Get the last day of a month
+ */
+export function endOfMonth(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+/**
+ * Get the start of the week (Sunday) for a given date
+ */
+export function startOfWeek(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    d.setDate(d.getDate() - day);
+    return d;
+}
+
+/**
+ * Get the end of the week (Saturday) for a given date
+ */
+export function endOfWeek(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    d.setDate(d.getDate() + (6 - day));
+    return d;
+}
+
+/**
+ * Get all days in an interval
+ */
+export function eachDayOfInterval(interval: { start: Date; end: Date }): Date[] {
+    const days: Date[] = [];
+    const current = new Date(interval.start);
+    while (current <= interval.end) {
+        days.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+    }
+    return days;
+}
+
+/**
+ * Add months to a date
+ */
+export function addMonths(date: Date, months: number): Date {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months);
+    return d;
+}
+
+/**
+ * Subtract months from a date
+ */
+export function subMonths(date: Date, months: number): Date {
+    return addMonths(date, -months);
+}
+
+/**
+ * Check if two dates are the same day
+ */
+export function isSameDay(date1: Date, date2: Date): boolean {
+    return date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate();
+}
+
+/**
+ * Check if a date is in the same month as another date
+ */
+export function isSameMonth(date1: Date, date2: Date): boolean {
+    return date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth();
+}
+
+/**
+ * Check if a date is today
+ */
+export function isToday(date: Date): boolean {
+    return isSameDay(date, new Date());
+}
+
+/**
+ * Format month and year (e.g., "December 2024")
+ */
+export function formatMonthYear(date: Date): string {
+    return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+}
