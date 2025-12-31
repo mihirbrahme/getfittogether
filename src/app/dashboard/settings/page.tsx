@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Shield, Lock, LogOut, Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Shield, Lock, LogOut, Save, Loader2, Eye, EyeOff, Moon, Sun, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/ThemeProvider';
 
 export default function SettingsPage() {
     const router = useRouter();
+    const { theme, setTheme, resolvedTheme } = useTheme();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
@@ -167,8 +169,85 @@ export default function SettingsPage() {
                 </div>
             </div>
 
+            {/* Theme Settings */}
+            <div className="premium-card rounded-[2.5rem] p-8">
+                <h3 className="text-lg font-black italic uppercase text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
+                    {resolvedTheme === 'dark' ? <Moon className="h-6 w-6 text-[#FF5E00]" /> : <Sun className="h-6 w-6 text-[#FF5E00]" />}
+                    Appearance
+                </h3>
+
+                <div className="grid grid-cols-3 gap-3">
+                    <button
+                        onClick={() => setTheme('light')}
+                        className={cn(
+                            "flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all press-effect",
+                            theme === 'light'
+                                ? "border-[#FF5E00] bg-orange-50 dark:bg-orange-500/10"
+                                : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                        )}
+                    >
+                        <div className={cn(
+                            "h-12 w-12 rounded-xl flex items-center justify-center",
+                            theme === 'light' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+                        )}>
+                            <Sun className="h-6 w-6" />
+                        </div>
+                        <span className={cn(
+                            "text-xs font-black uppercase tracking-wider",
+                            theme === 'light' ? "text-[#FF5E00]" : "text-zinc-500 dark:text-zinc-400"
+                        )}>Light</span>
+                    </button>
+
+                    <button
+                        onClick={() => setTheme('dark')}
+                        className={cn(
+                            "flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all press-effect",
+                            theme === 'dark'
+                                ? "border-[#FF5E00] bg-orange-50 dark:bg-orange-500/10"
+                                : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                        )}
+                    >
+                        <div className={cn(
+                            "h-12 w-12 rounded-xl flex items-center justify-center",
+                            theme === 'dark' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+                        )}>
+                            <Moon className="h-6 w-6" />
+                        </div>
+                        <span className={cn(
+                            "text-xs font-black uppercase tracking-wider",
+                            theme === 'dark' ? "text-[#FF5E00]" : "text-zinc-500 dark:text-zinc-400"
+                        )}>Dark</span>
+                    </button>
+
+                    <button
+                        onClick={() => setTheme('system')}
+                        className={cn(
+                            "flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all press-effect",
+                            theme === 'system'
+                                ? "border-[#FF5E00] bg-orange-50 dark:bg-orange-500/10"
+                                : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                        )}
+                    >
+                        <div className={cn(
+                            "h-12 w-12 rounded-xl flex items-center justify-center",
+                            theme === 'system' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+                        )}>
+                            <Monitor className="h-6 w-6" />
+                        </div>
+                        <span className={cn(
+                            "text-xs font-black uppercase tracking-wider",
+                            theme === 'system' ? "text-[#FF5E00]" : "text-zinc-500 dark:text-zinc-400"
+                        )}>System</span>
+                    </button>
+                </div>
+
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-4 font-medium text-center">
+                    Currently using {resolvedTheme} mode
+                </p>
+            </div>
+
             {/* Profile Information */}
-            <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-sm">
+            <div className="premium-card rounded-[2.5rem] p-8">
                 <h3 className="text-lg font-black italic uppercase text-zinc-900 mb-6 flex items-center gap-3">
                     <User className="h-6 w-6 text-[#FF5E00]" />
                     Profile
@@ -235,8 +314,8 @@ export default function SettingsPage() {
             </div>
 
             {/* Security */}
-            <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-sm">
-                <h3 className="text-lg font-black italic uppercase text-zinc-900 mb-6 flex items-center gap-3">
+            <div className="premium-card rounded-[2.5rem] p-8">
+                <h3 className="text-lg font-black italic uppercase text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
                     <Lock className="h-6 w-6 text-[#FF5E00]" />
                     Security
                 </h3>
@@ -310,16 +389,16 @@ export default function SettingsPage() {
             </div>
 
             {/* Account Details */}
-            <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-sm">
-                <h3 className="text-lg font-black italic uppercase text-zinc-900 mb-6 flex items-center gap-3">
+            <div className="premium-card rounded-[2.5rem] p-8">
+                <h3 className="text-lg font-black italic uppercase text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
                     <Shield className="h-6 w-6 text-[#FF5E00]" />
                     Account Details
                 </h3>
 
                 <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-                        <span className="text-zinc-500 font-medium">Member Since</span>
-                        <span className="font-black text-zinc-900">{createdAt}</span>
+                    <div className="flex justify-between items-center py-3 border-b border-zinc-100 dark:border-zinc-700">
+                        <span className="text-zinc-500 dark:text-zinc-400 font-medium">Member Since</span>
+                        <span className="font-black text-zinc-900 dark:text-zinc-100">{createdAt}</span>
                     </div>
                     <div className="flex justify-between items-center py-3 border-b border-zinc-100">
                         <span className="text-zinc-500 font-medium">Account Status</span>
@@ -330,9 +409,9 @@ export default function SettingsPage() {
                             {status}
                         </span>
                     </div>
-                    <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-                        <span className="text-zinc-500 font-medium">Role</span>
-                        <span className="font-black text-zinc-900 uppercase">{role}</span>
+                    <div className="flex justify-between items-center py-3 border-b border-zinc-100 dark:border-zinc-700">
+                        <span className="text-zinc-500 dark:text-zinc-400 font-medium">Role</span>
+                        <span className="font-black text-zinc-900 dark:text-zinc-100 uppercase">{role}</span>
                     </div>
                     <div className="flex justify-between items-center py-3">
                         <span className="text-zinc-500 font-medium">Total Points Earned</span>
@@ -342,7 +421,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Danger Zone */}
-            <div className="bg-white rounded-[2.5rem] p-8 border-2 border-red-100 shadow-sm">
+            <div className="premium-card rounded-[2.5rem] p-8 border-2 border-red-200 dark:border-red-900">
                 <h3 className="text-lg font-black italic uppercase text-red-600 mb-4">
                     Sign Out
                 </h3>
