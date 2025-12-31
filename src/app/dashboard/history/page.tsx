@@ -26,6 +26,8 @@ interface SquadCheckInLog {
 export default function HistoryPage() {
     const [myHistory, setMyHistory] = useState<CheckInLog[]>([]);
     const [squadHistory, setSquadHistory] = useState<SquadCheckInLog[]>([]);
+    const [activityNames, setActivityNames] = useState<Record<string, string>>({});
+    const [goalNames, setGoalNames] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'personal' | 'squad'>('personal');
 
@@ -56,6 +58,36 @@ export default function HistoryPage() {
             .single();
 
         if (membership) {
+            // Fetch activity names for this squad
+            const { data: activities } = await supabase
+                .from('squad_checkin_activities')
+                .select('id, activity_name')
+                .eq('squad_id', membership.group_id);
+
+            if (activities) {
+                const activityMap: Record<string, string> = {};
+                activities.forEach(a => {
+                    activityMap[a.id] = a.activity_name;
+                });
+                setActivityNames(activityMap);
+            }
+
+            // Fetch goal names assigned to this user
+            const { data: userGoals } = await supabase
+                .from('user_goal_assignments')
+                .select('slot, goal_templates(id, name)')
+                .eq('user_id', user.id);
+
+            if (userGoals) {
+                const goalMap: Record<string, string> = {};
+                userGoals.forEach((g: any) => {
+                    if (g.goal_templates) {
+                        goalMap[g.slot.toString()] = g.goal_templates.name;
+                    }
+                });
+                setGoalNames(goalMap);
+            }
+
             const { data: squadMembers } = await supabase
                 .from('group_members')
                 .select('user_id')
@@ -193,17 +225,29 @@ export default function HistoryPage() {
                                         {/* Activities Detail */}
                                         <div className="mt-4 pt-4 border-t border-zinc-100">
                                             <div className="flex flex-wrap gap-2">
-                                                {Object.entries(log.custom_logs || {}).map(([key, value]) => (
-                                                    <div
-                                                        key={key}
-                                                        className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${value
-                                                            ? 'bg-emerald-50 text-emerald-600'
-                                                            : 'bg-red-50 text-red-600'
-                                                            }`}
-                                                    >
-                                                        {value ? '✓' : '✗'} {key.replace('activity_', '').replace('goal_', 'Goal ')}
-                                                    </div>
-                                                ))}
+                                                {Object.entries(log.custom_logs || {}).map(([key, value]) => {
+                                                    // Get the display name for activities and goals
+                                                    let displayName = key;
+                                                    if (key.startsWith('activity_')) {
+                                                        const activityId = key.replace('activity_', '');
+                                                        displayName = activityNames[activityId] || activityId;
+                                                    } else if (key.startsWith('goal_')) {
+                                                        const goalSlot = key.replace('goal_', '');
+                                                        displayName = goalNames[goalSlot] || `Goal ${goalSlot}`;
+                                                    }
+
+                                                    return (
+                                                        <div
+                                                            key={key}
+                                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${value
+                                                                ? 'bg-emerald-50 text-emerald-600'
+                                                                : 'bg-red-50 text-red-600'
+                                                                }`}
+                                                        >
+                                                            {value ? '✓' : '✗'} {displayName}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     </div>

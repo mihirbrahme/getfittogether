@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, X, Trash2, Save, Edit2, Copy, Tag as TagIcon, Loader2 } from 'lucide-react';
+import { Plus, Search, X, Trash2, Save, Edit2, Copy, Tag as TagIcon, Loader2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Exercise, WorkoutTemplate, PREDEFINED_TAGS } from './library/types';
 import ExerciseFormRow from './library/ExerciseFormRow';
+import BulkExerciseImport from './library/BulkExerciseImport';
 
 export default function EnhancedLibraryManager() {
     const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -15,6 +16,7 @@ export default function EnhancedLibraryManager() {
     const [isEditing, setIsEditing] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | null>(null);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [showBulkImport, setShowBulkImport] = useState(false);
 
     const [formData, setFormData] = useState<WorkoutTemplate>({
         name: '',
@@ -248,6 +250,13 @@ export default function EnhancedLibraryManager() {
         } else {
             setFormData({ ...formData, tags: [...formData.tags, tag] });
         }
+    };
+
+    const handleBulkImport = (exercises: Exercise[]) => {
+        setFormData({
+            ...formData,
+            exercises: [...(formData.exercises || []), ...exercises]
+        });
     };
 
     const toggleFilterTag = (tag: string) => {
@@ -498,13 +507,22 @@ export default function EnhancedLibraryManager() {
                                 <label className="text-xs font-black uppercase text-zinc-600">
                                     Exercises ({formData.exercises?.length || 0})
                                 </label>
-                                <button
-                                    onClick={addExercise}
-                                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-black uppercase text-xs hover:bg-emerald-600 transition-all flex items-center gap-2"
-                                >
-                                    <Plus className="h-4 w-4" />
-                                    Add Exercise
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowBulkImport(true)}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-xl font-black uppercase text-xs hover:bg-blue-600 transition-all flex items-center gap-2"
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        Import Exercises
+                                    </button>
+                                    <button
+                                        onClick={addExercise}
+                                        className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-black uppercase text-xs hover:bg-emerald-600 transition-all flex items-center gap-2"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Exercise
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="space-y-4">
@@ -550,6 +568,14 @@ export default function EnhancedLibraryManager() {
                     </div>
                 </div>
             )}
+
+            {/* Bulk Exercise Import Modal */}
+            <BulkExerciseImport
+                isOpen={showBulkImport}
+                onClose={() => setShowBulkImport(false)}
+                onImport={handleBulkImport}
+                startingIndex={formData.exercises?.length || 0}
+            />
         </div>
     );
 }

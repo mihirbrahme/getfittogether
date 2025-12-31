@@ -196,16 +196,17 @@ export default function CheckInPage() {
             });
 
         if (!error) {
-            // Update user's total points
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('total_points')
-                .eq('id', user.id)
-                .single();
+            // Recalculate total points as sum of all daily logs for this user
+            const { data: allLogs } = await supabase
+                .from('daily_logs')
+                .select('daily_points')
+                .eq('user_id', user.id);
+
+            const calculatedTotal = allLogs?.reduce((sum, log) => sum + (log.daily_points || 0), 0) || 0;
 
             await supabase
                 .from('profiles')
-                .update({ total_points: (profile?.total_points || 0) + totalPoints })
+                .update({ total_points: calculatedTotal })
                 .eq('id', user.id);
 
             // Log audit event
