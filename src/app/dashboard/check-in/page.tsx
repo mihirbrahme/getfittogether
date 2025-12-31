@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, X, Target, Activity } from 'lucide-react';
+import { Loader2, Check, X, Target, Activity, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getToday, formatDate } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 import { logCheckIn } from '@/lib/auditLog';
+import Confetti from '@/components/Confetti';
+import AnimatedNumber from '@/components/AnimatedNumber';
 
 interface CheckInActivity {
     id: string;
@@ -39,6 +41,10 @@ export default function CheckInPage() {
 
     // Activity responses: key -> boolean | null
     const [responses, setResponses] = useState<Record<string, boolean | null>>({});
+
+    // Celebration state
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [earnedPoints, setEarnedPoints] = useState(0);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -212,8 +218,10 @@ export default function CheckInPage() {
             // Log audit event
             await logCheckIn(user.id, today, totalPoints);
 
+            // Trigger celebration!
+            setEarnedPoints(totalPoints);
+            setShowConfetti(true);
             setAlreadySubmitted(true);
-            alert(`Check-in saved! You earned ${totalPoints} points today! 🎉`);
         }
 
         setSubmitting(false);
@@ -236,14 +244,40 @@ export default function CheckInPage() {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+        <div className="space-y-8 animate-fade-in-up pb-20">
+            {/* Confetti Celebration */}
+            <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
+
+            {/* Success Message */}
+            {showConfetti && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="premium-card p-8 rounded-[2rem] text-center max-w-sm mx-4 animate-scale-in-bounce">
+                        <div className="h-20 w-20 bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-orange-500/30">
+                            <Sparkles className="h-10 w-10 text-white" />
+                        </div>
+                        <h3 className="text-2xl font-black italic text-zinc-900 dark:text-zinc-100 uppercase mb-2">Amazing!</h3>
+                        <p className="text-zinc-500 dark:text-zinc-400 mb-4">You earned</p>
+                        <div className="text-5xl font-black text-[#FF5E00] mb-2">
+                            <AnimatedNumber value={earnedPoints} duration={1500} />
+                        </div>
+                        <p className="text-zinc-500 dark:text-zinc-400 text-sm">points today</p>
+                        <button
+                            onClick={() => setShowConfetti(false)}
+                            className="mt-6 bg-[#FF5E00] text-white font-black py-3 px-8 rounded-xl text-sm uppercase press-effect"
+                        >
+                            Continue
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-black italic uppercase text-zinc-900 tracking-tighter">
+                    <h1 className="text-3xl font-black italic uppercase text-zinc-900 dark:text-zinc-100 tracking-tighter">
                         Daily <span className="text-[#FF5E00]">Check-In</span>
                     </h1>
-                    <p className="text-zinc-500 font-medium text-sm mt-1">
+                    <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mt-1">
                         {alreadySubmitted
                             ? `Already checked in for ${formatDate(new Date(), 'short')}!`
                             : 'Track your daily progress'
@@ -255,19 +289,19 @@ export default function CheckInPage() {
 
             {/* Activities Section */}
             {activities.length > 0 && (
-                <div className="space-y-4">
-                    <h2 className="text-xl font-black italic uppercase text-zinc-700 flex items-center gap-2">
+                <div className="space-y-4 animate-stagger">
+                    <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                         <Activity className="h-6 w-6 text-[#FF5E00]" />
                         Daily Tasks
                     </h2>
                     {activities.map((activity) => (
                         <div
                             key={activity.id}
-                            className="bg-white rounded-2xl p-6 border border-zinc-100 shadow-sm"
+                            className="premium-card rounded-2xl p-6"
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="font-black text-lg text-zinc-900">
+                                    <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
                                         {activity.activity_name}
                                     </h3>
                                     <p className="text-sm text-[#FF5E00] font-bold">
@@ -280,10 +314,10 @@ export default function CheckInPage() {
                                     onClick={() => handleToggle(`activity_${activity.id}`, true)}
                                     disabled={alreadySubmitted}
                                     className={cn(
-                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`activity_${activity.id}`] === true
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
                                         alreadySubmitted && "cursor-not-allowed opacity-70"
                                     )}
                                 >
@@ -294,10 +328,10 @@ export default function CheckInPage() {
                                     onClick={() => handleToggle(`activity_${activity.id}`, false)}
                                     disabled={alreadySubmitted}
                                     className={cn(
-                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`activity_${activity.id}`] === false
-                                            ? "bg-red-500 text-white"
-                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
                                         alreadySubmitted && "cursor-not-allowed opacity-70"
                                     )}
                                 >
@@ -312,26 +346,26 @@ export default function CheckInPage() {
 
             {/* Goals Section */}
             {assignedGoals.length > 0 && (
-                <div className="space-y-4">
-                    <h2 className="text-xl font-black italic uppercase text-zinc-700 flex items-center gap-2">
+                <div className="space-y-4 animate-stagger">
+                    <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                         <Target className="h-6 w-6 text-[#FF5E00]" />
                         Your Goals
                     </h2>
-                    <p className="text-xs text-zinc-500 font-medium -mt-2">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium -mt-2">
                         Set by admin
                     </p>
                     {assignedGoals.map((goal) => (
                         <div
                             key={goal.slot}
-                            className="bg-white rounded-2xl p-6 border border-zinc-100 shadow-sm"
+                            className="premium-card rounded-2xl p-6"
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="font-black text-lg text-zinc-900">
+                                    <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
                                         {goal.goal_templates.name}
                                     </h3>
                                     {goal.goal_templates.description && (
-                                        <p className="text-sm text-zinc-500 mt-1">
+                                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                                             {goal.goal_templates.description}
                                         </p>
                                     )}
@@ -345,10 +379,10 @@ export default function CheckInPage() {
                                     onClick={() => handleToggle(`goal_${goal.slot}`, true)}
                                     disabled={alreadySubmitted}
                                     className={cn(
-                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`goal_${goal.slot}`] === true
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
                                         alreadySubmitted && "cursor-not-allowed opacity-70"
                                     )}
                                 >
@@ -359,10 +393,10 @@ export default function CheckInPage() {
                                     onClick={() => handleToggle(`goal_${goal.slot}`, false)}
                                     disabled={alreadySubmitted}
                                     className={cn(
-                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all",
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`goal_${goal.slot}`] === false
-                                            ? "bg-red-500 text-white"
-                                            : "bg-zinc-50 text-zinc-400 border border-zinc-200",
+                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
                                         alreadySubmitted && "cursor-not-allowed opacity-70"
                                     )}
                                 >

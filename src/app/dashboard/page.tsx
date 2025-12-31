@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Check, Calendar, ArrowRight, Activity } from 'lucide-react';
+import { Check, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getToday, differenceInDays, subDays, formatShortWeekday } from '@/lib/dateUtils';
+import { differenceInDays, subDays, formatShortWeekday } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
+import StreakBadge from '@/components/StreakBadge';
+import WODPreview from '@/components/WODPreview';
+import AnimatedNumber from '@/components/AnimatedNumber';
+import ProgressRing from '@/components/ProgressRing';
 
 const TOTAL_DAYS = 70;
+const MAX_DAILY_POINTS = 75; // WOD(25) + Steps(10) + Diet(10) + Sleep(10) + Hydration(10) + Goals(10)
 
 export default function Dashboard() {
     const router = useRouter();
@@ -21,6 +26,8 @@ export default function Dashboard() {
     const [weeklyStatus, setWeeklyStatus] = useState<(boolean | null)[]>(Array(7).fill(null));
     const [streak, setStreak] = useState(0);
     const [totalPoints, setTotalPoints] = useState(0);
+    const [todayPoints, setTodayPoints] = useState(0);
+    const [todayCompletion, setTodayCompletion] = useState(0);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -44,12 +51,10 @@ export default function Dashboard() {
                 .single();
 
             if (profile) {
-                // Set Name (Use first name or fallback to full name)
                 const nameToUse = profile.first_name || profile.full_name?.split(' ')[0] || 'Participant';
                 setFirstName(nameToUse);
                 setTotalPoints(profile.total_points || 0);
 
-                // Calculate Day of Program
                 // @ts-ignore
                 const groupStartDate = profile.group_members?.[0]?.groups?.start_date;
                 if (groupStartDate) {
@@ -62,8 +67,10 @@ export default function Dashboard() {
                 }
             }
 
-            // 2. Fetch Weekly Logs (Last 7 Days)
+            // 2. Fetch Weekly Logs (Last 7 Days) and calculate streak
             const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
             const last7Days = Array.from({ length: 7 }, (_, i) => {
                 const d = subDays(today, 6 - i);
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -71,66 +78,128 @@ export default function Dashboard() {
 
             const { data: logs } = await supabase
                 .from('daily_logs')
-                .select('date')
+                .select('date, points_earned')
                 .eq('user_id', user.id)
-                .in('date', last7Days);
+                .order('date', { ascending: false })
+                .limit(30);
 
             // Map logs to status array
-            const statusMap = new Set(logs?.map(l => l.date));
-            const newStatus = last7Days.map(dateStr => statusMap.has(dateStr)); // true if logged, false if missed (simplified)
-
-            // For future days vs missed past days logic:
-            // This simple version assumes false = missed. 
-            // Better logic: if date > today, result is null (future).
-            // But here we are iterating up to today. So all are past or present.
-
+            const logsMap = new Map(logs?.map(l => [l.date, l.points_earned]) || []);
+            const newStatus = last7Days.map(dateStr => logsMap.has(dateStr));
             setWeeklyStatus(newStatus);
-            setStreak(logs?.length || 0); // Simple count for now, real streak logic involves consecutive check
+
+            // Calculate actual streak (consecutive days)
+            let consecutiveDays = 0;
+            if (logs && logs.length > 0) {
+                const sortedDates = logs.map(l => l.date).sort().reverse();
+                for (let i = 0; i < sortedDates.length; i++) {
+                    const expectedDate = subDays(today, i);
+                    const expectedStr = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, '0')}-${String(expectedDate.getDate()).padStart(2, '0')}`;
+                    if (sortedDates.includes(expectedStr)) {
+                        consecutiveDays++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            setStreak(consecutiveDays);
+
+            // Today's points
+            const todayLog = logs?.find(l => l.date === todayStr);
+            if (todayLog) {
+                setTodayPoints(todayLog.points_earned || 0);
+                setTodayCompletion(Math.round(((todayLog.points_earned || 0) / MAX_DAILY_POINTS) * 100));
+            }
 
             setLoading(false);
         };
         fetchData();
     }, [router]);
 
-    if (loading) return null;
+    if (loading) {
+        return (
+            <div className="space-y-8 animate-pulse">
+                <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                        <div className="h-3 w-20 bg-zinc-200 dark:bg-zinc-700 rounded" />
+                        <div className="h-10 w-48 bg-zinc-200 dark:bg-zinc-700 rounded" />
+                    </div>
+                    <div className="h-12 w-12 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="premium-card h-32 rounded-[2rem]" />
+                    <div className="premium-card h-32 rounded-[2rem]" />
+                </div>
+            </div>
+        );
+    }
 
     const weekLabels = Array.from({ length: 7 }, (_, i) => {
         const d = subDays(new Date(), 6 - i);
-        return formatShortWeekday(d); // Mon, Tue...
+        return formatShortWeekday(d);
     });
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-6 animate-fade-in-up pb-20">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-zinc-400 text-xs font-black uppercase tracking-widest mb-1">Overview</h2>
-                    <h1 className="text-3xl lg:text-4xl font-black italic text-zinc-900 uppercase tracking-tighter">
+                    <h2 className="text-zinc-400 dark:text-zinc-500 text-xs font-black uppercase tracking-widest mb-1">Overview</h2>
+                    <h1 className="text-3xl lg:text-4xl font-black italic text-zinc-900 dark:text-zinc-100 uppercase tracking-tighter">
                         Keep going, <br /><span className="text-[#FF5E00]">{firstName}</span>.
                     </h1>
                 </div>
-                <DateDisplay />
+                <div className="flex flex-col items-end gap-2">
+                    <DateDisplay />
+                    {streak > 0 && <StreakBadge streak={streak} size="sm" />}
+                </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col items-center justify-center text-center">
-                    <span className="text-5xl font-black italic text-zinc-900 tracking-tighter mb-2">{currentDay}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5E00]">Day of Program</span>
+            {/* Today's Progress Ring + Stats Grid */}
+            <div className="grid grid-cols-3 gap-4">
+                {/* Progress Ring */}
+                <div className="premium-card rounded-[2rem] p-6 flex flex-col items-center justify-center">
+                    <ProgressRing
+                        progress={todayCompletion}
+                        size={80}
+                        strokeWidth={8}
+                        color="var(--primary)"
+                        bgColor="var(--border-light)"
+                    >
+                        <span className="text-lg font-black text-zinc-900 dark:text-zinc-100">{todayCompletion}%</span>
+                    </ProgressRing>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mt-2">Today</span>
                 </div>
-                <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col items-center justify-center text-center">
-                    <span className="text-5xl font-black italic text-zinc-900 tracking-tighter mb-2">{totalPoints}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5E00]">Total Points</span>
+
+                {/* Day of Program */}
+                <div className="premium-card rounded-[2rem] p-6 flex flex-col items-center justify-center text-center">
+                    <AnimatedNumber
+                        value={currentDay}
+                        className="text-4xl font-black italic text-zinc-900 dark:text-zinc-100 tracking-tighter mb-1"
+                    />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#FF5E00]">Day</span>
+                </div>
+
+                {/* Total Points */}
+                <div className="premium-card rounded-[2rem] p-6 flex flex-col items-center justify-center text-center">
+                    <AnimatedNumber
+                        value={totalPoints}
+                        className="text-4xl font-black italic text-zinc-900 dark:text-zinc-100 tracking-tighter mb-1"
+                    />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#FF5E00]">Points</span>
                 </div>
             </div>
+
+            {/* Today's WOD Preview */}
+            <WODPreview />
 
             {/* Weekly Status */}
-            <div className="bg-white p-6 rounded-[2.5rem] border border-zinc-100 shadow-sm">
+            <div className="premium-card p-6 rounded-[2.5rem]">
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-orange-50 rounded-xl">
+                    <div className="p-2 bg-orange-50 dark:bg-orange-500/10 rounded-xl">
                         <Activity className="h-5 w-5 text-[#FF5E00]" />
                     </div>
-                    <h3 className="text-lg font-black italic text-zinc-900 uppercase">Last 7 Days</h3>
+                    <h3 className="text-lg font-black italic text-zinc-900 dark:text-zinc-100 uppercase">Last 7 Days</h3>
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -145,27 +214,31 @@ export default function Dashboard() {
                                     isLogged
                                         ? "bg-[#FF5E00] border-[#FF5E00] text-white"
                                         : isToday
-                                            ? "bg-zinc-50 border-zinc-100 text-zinc-300 animate-pulse" // Today pending
-                                            : "bg-red-50 border-red-100 text-red-300" // Past Missed
+                                            ? "bg-zinc-50 dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700 text-zinc-300 dark:text-zinc-600 animate-pulse"
+                                            : "bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20 text-red-300 dark:text-red-400"
                                 )}>
                                     {isLogged ? <Check className="h-5 w-5" /> :
-                                        isToday ? <div className="h-2 w-2 rounded-full bg-zinc-300" /> :
+                                        isToday ? <div className="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600" /> :
                                             <span className="text-xs font-black">X</span>}
                                 </div>
-                                <span className="text-[10px] font-bold text-zinc-300 uppercase">{day}</span>
+                                <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase">{day}</span>
                             </div>
                         );
                     })}
                 </div>
-                <p className="text-center text-xs font-medium text-zinc-400 mt-6">
+
+                <p className="text-center text-xs font-medium text-zinc-400 dark:text-zinc-500 mt-6">
                     {streak > 0
-                        ? <span>You've logged <span className="text-[#FF5E00] font-black">{streak}</span> times this week. Good work.</span>
+                        ? <span>You're on a <span className="text-[#FF5E00] font-black">{streak}-day</span> streak! Keep it up 🔥</span>
                         : "Start your streak today."}
                 </p>
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-gradient-to-br from-[#FF5E00] to-orange-600 p-8 rounded-[2.5rem] shadow-xl shadow-orange-500/30 text-center relative overflow-hidden group hover:scale-[1.02] transition-transform cursor-pointer" onClick={() => router.push('/dashboard/check-in')}>
+            {/* Quick Actions CTA */}
+            <div
+                className="bg-gradient-to-br from-[#FF5E00] to-orange-600 p-8 rounded-[2.5rem] shadow-xl shadow-orange-500/30 text-center relative overflow-hidden group hover:scale-[1.02] transition-transform cursor-pointer press-effect"
+                onClick={() => router.push('/dashboard/check-in')}
+            >
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-[50px] -translate-y-1/2 translate-x-1/2" />
 
                 <div className="relative z-10">
