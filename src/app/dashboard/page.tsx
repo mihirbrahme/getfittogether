@@ -156,7 +156,7 @@ export default function Dashboard() {
             </div>
 
             {/* Today's Progress Ring + Stats Grid */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                 {/* Progress Ring */}
                 <div className="premium-card rounded-[2rem] p-6 flex flex-col items-center justify-center">
                     <ProgressRing
@@ -210,7 +210,7 @@ export default function Dashboard() {
                         return (
                             <div key={i} className="flex flex-col items-center gap-3">
                                 <div className={cn(
-                                    "h-10 w-10 rounded-full flex items-center justify-center border-2 transition-all",
+                                    "h-11 w-11 rounded-full flex items-center justify-center border-2 transition-all",
                                     isLogged
                                         ? "bg-[#FF5E00] border-[#FF5E00] text-white"
                                         : isToday
@@ -221,7 +221,7 @@ export default function Dashboard() {
                                         isToday ? <div className="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600" /> :
                                             <span className="text-xs font-black">X</span>}
                                 </div>
-                                <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase">{day}</span>
+                                <span className="text-[11px] font-bold text-zinc-300 dark:text-zinc-600 uppercase">{day}</span>
                             </div>
                         );
                     })}
