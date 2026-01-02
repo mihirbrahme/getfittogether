@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Shield, Lock, LogOut, Save, Loader2, Eye, EyeOff, Moon, Sun, Monitor } from 'lucide-react';
+import { User, Mail, Shield, Lock, LogOut, Save, Loader2, Eye, EyeOff, Moon, Sun, Monitor, Users, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -28,6 +28,13 @@ export default function SettingsPage() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+
+    // Squad Management
+    const [currentSquad, setCurrentSquad] = useState<{ id: string; name: string } | null>(null);
+    const [allSquads, setAllSquads] = useState<{ id: string; name: string; code: string }[]>([]);
+    const [selectedNewSquad, setSelectedNewSquad] = useState('');
+    const [squadRequestPending, setSquadRequestPending] = useState(false);
+    const [changingSquad, setChangingSquad] = useState(false);
 
     useEffect(() => {
         fetchProfile();
@@ -55,6 +62,32 @@ export default function SettingsPage() {
             setStatus(profile.status || 'pending');
             setTotalPoints(profile.total_points || 0);
             setCreatedAt(new Date(profile.created_at).toLocaleDateString());
+        }
+
+        // Fetch current squad
+        const { data: membership } = await supabase
+            .from('group_members')
+            .select('group_id, status, groups(id, name)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (membership) {
+            setCurrentSquad((membership as any).groups);
+            if (membership.status === 'pending') {
+                setSquadRequestPending(true);
+            }
+        }
+
+        // Fetch all available squads
+        const { data: squads } = await supabase
+            .from('groups')
+            .select('id, name, code')
+            .order('name');
+
+        if (squads) {
+            setAllSquads(squads);
         }
 
         setLoading(false);
@@ -118,6 +151,38 @@ export default function SettingsPage() {
     const handleLogout = async () => {
         await supabase.auth.signOut();
         router.push('/auth?mode=login');
+    };
+
+    const handleSquadChange = async () => {
+        if (!selectedNewSquad || selectedNewSquad === currentSquad?.id) {
+            return;
+        }
+
+        setChangingSquad(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Insert new squad membership request (status: pending)
+        const { error } = await supabase
+            .from('group_members')
+            .insert({
+                user_id: user.id,
+                group_id: selectedNewSquad,
+                status: 'pending'
+            });
+
+        if (error) {
+            if (error.code === '23505') {
+                alert('You already have a pending request for this squad.');
+            } else {
+                alert('Error requesting squad change: ' + error.message);
+            }
+        } else {
+            alert('Squad change request submitted! Awaiting admin approval.');
+            setSquadRequestPending(true);
+            setSelectedNewSquad('');
+        }
+        setChangingSquad(false);
     };
 
     if (loading) {
@@ -244,6 +309,91 @@ export default function SettingsPage() {
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-4 font-medium text-center">
                     Currently using {resolvedTheme} mode
                 </p>
+            </div>
+
+            {/* Squad Management */}
+            <div className="premium-card rounded-[2.5rem] p-8">
+                <h3 className="text-lg font-black italic uppercase text-zinc-900 dark:text-zinc-100 mb-6 flex items-center gap-3">
+                    <Users className="h-6 w-6 text-[#FF5E00]" />
+                    Squad
+                </h3>
+
+                {/* Current Squad */}
+                <div className="mb-6">
+                    <label className="text-xs font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-widest mb-2 block">
+                        Current Squad
+                    </label>
+                    <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-700">
+                        <div className="h-10 w-10 rounded-lg bg-[#FF5E00] flex items-center justify-center">
+                            <Users className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-black text-zinc-900 dark:text-zinc-100 uppercase">
+                                {currentSquad?.name || 'Not assigned'}
+                            </p>
+                            {squadRequestPending && (
+                                <p className="text-xs text-amber-600 font-bold">Change request pending approval</p>
+                            )}
+                        </div>
+                        {currentSquad && (
+                            <span className="text-[10px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-full uppercase">
+                                Active
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Change Squad */}
+                <div>
+                    <label className="text-xs font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-widest mb-2 block">
+                        Request Squad Change
+                    </label>
+                    <div className="flex gap-3">
+                        <div className="relative flex-1">
+                            <select
+                                value={selectedNewSquad}
+                                onChange={(e) => setSelectedNewSquad(e.target.value)}
+                                disabled={squadRequestPending || changingSquad}
+                                className={cn(
+                                    "w-full px-5 py-4 rounded-xl border appearance-none font-bold uppercase text-sm",
+                                    "focus:outline-none focus:border-[#FF5E00] focus:ring-4 focus:ring-[#FF5E00]/10",
+                                    "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100",
+                                    squadRequestPending && "opacity-50 cursor-not-allowed"
+                                )}
+                            >
+                                <option value="">Select a squad...</option>
+                                {allSquads.filter(s => s.id !== currentSquad?.id).map(squad => (
+                                    <option key={squad.id} value={squad.id}>
+                                        {squad.name} (Code: {squad.code})
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 pointer-events-none" />
+                        </div>
+                        <button
+                            onClick={handleSquadChange}
+                            disabled={!selectedNewSquad || squadRequestPending || changingSquad}
+                            className={cn(
+                                "px-6 py-4 rounded-xl font-black uppercase text-sm flex items-center gap-2 transition-all press-effect",
+                                selectedNewSquad && !squadRequestPending
+                                    ? "bg-[#FF5E00] text-white hover:bg-orange-600"
+                                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
+                            )}
+                        >
+                            {changingSquad ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : (
+                                <>
+                                    <Check className="h-5 w-5" />
+                                    Request
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
+                        Squad change requires admin approval. Your progress will transfer to the new squad.
+                    </p>
+                </div>
             </div>
 
             {/* Profile Information */}

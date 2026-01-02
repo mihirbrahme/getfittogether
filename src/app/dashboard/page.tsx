@@ -78,13 +78,13 @@ export default function Dashboard() {
 
             const { data: logs } = await supabase
                 .from('daily_logs')
-                .select('date, points_earned')
+                .select('date, daily_points')
                 .eq('user_id', user.id)
                 .order('date', { ascending: false })
                 .limit(30);
 
             // Map logs to status array
-            const logsMap = new Map(logs?.map(l => [l.date, l.points_earned]) || []);
+            const logsMap = new Map(logs?.map(l => [l.date, l.daily_points]) || []);
             const newStatus = last7Days.map(dateStr => logsMap.has(dateStr));
             setWeeklyStatus(newStatus);
 
@@ -107,8 +107,8 @@ export default function Dashboard() {
             // Today's points
             const todayLog = logs?.find(l => l.date === todayStr);
             if (todayLog) {
-                setTodayPoints(todayLog.points_earned || 0);
-                setTodayCompletion(Math.round(((todayLog.points_earned || 0) / MAX_DAILY_POINTS) * 100));
+                setTodayPoints(todayLog.daily_points || 0);
+                setTodayCompletion(Math.round(((todayLog.daily_points || 0) / MAX_DAILY_POINTS) * 100));
             }
 
             setLoading(false);
