@@ -109,12 +109,17 @@ export default function AdminPointsAwarder() {
         setAwards(initial);
     };
 
+    // Validate points to ensure they're within 0-10 range (SECURITY)
+    const validatePoints = (value: number): number => {
+        return Math.max(0, Math.min(10, Math.floor(value)));
+    };
+
     const updateAward = (userId: string, field: 'consistency' | 'effort' | 'community' | 'notes', value: number | string) => {
         setAwards(prev => ({
             ...prev,
             [userId]: {
                 ...prev[userId],
-                [field]: value
+                [field]: field === 'notes' ? value : validatePoints(value as number)
             }
         }));
         setSaved(false);
@@ -122,34 +127,46 @@ export default function AdminPointsAwarder() {
 
     const handleSave = async () => {
         setSaving(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
 
         try {
-            for (const userId of Object.keys(awards)) {
-                const award = awards[userId];
-                await supabase
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error('Not authenticated');
+            }
+
+            // Validate all awards before saving
+            const validatedAwards = Object.entries(awards).map(([userId, award]) => ({
+                user_id: userId,
+                week_start: weekStart,
+                consistency_points: validatePoints(award.consistency),
+                effort_points: validatePoints(award.effort),
+                community_points: validatePoints(award.community),
+                notes: award.notes || null,
+                awarded_by: user.id,
+                updated_at: new Date().toISOString()
+            }));
+
+            // Batch upsert with error handling
+            for (const validatedAward of validatedAwards) {
+                const { error } = await supabase
                     .from('admin_weekly_points')
-                    .upsert({
-                        user_id: userId,
-                        week_start: weekStart,
-                        consistency_points: award.consistency,
-                        effort_points: award.effort,
-                        community_points: award.community,
-                        notes: award.notes || null,
-                        awarded_by: user.id,
-                        updated_at: new Date().toISOString()
-                    }, {
+                    .upsert(validatedAward, {
                         onConflict: 'user_id,week_start'
                     });
-            }
-            setSaved(true);
-        } catch (error) {
-            console.error('Error saving awards:', error);
-            alert('Failed to save awards');
-        }
 
-        setSaving(false);
+                if (error) {
+                    throw new Error(`Failed to save award for user: ${error.message}`);
+                }
+            }
+
+            setSaved(true);
+
+        } catch (error: any) {
+            console.error('Error saving awards:', error);
+            alert(`Failed to save awards: ${error.message || 'Unknown error'}. Please try again.`);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const navigateWeek = (direction: 'prev' | 'next') => {

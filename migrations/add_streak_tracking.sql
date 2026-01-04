@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS streak_milestones (
 -- Enable RLS
 ALTER TABLE streak_milestones ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policy if it exists (idempotent)
+DROP POLICY IF EXISTS "Authenticated users can read milestones" ON streak_milestones;
+
 -- Allow read access for authenticated users
 CREATE POLICY "Authenticated users can read milestones" 
 ON streak_milestones FOR SELECT 
@@ -75,6 +78,9 @@ CREATE TABLE IF NOT EXISTS streak_bonus_log (
 
 -- Enable RLS
 ALTER TABLE streak_bonus_log ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policy if it exists (idempotent)
+DROP POLICY IF EXISTS "Users can read own streak bonuses" ON streak_bonus_log;
 
 -- Users can read their own bonuses
 CREATE POLICY "Users can read own streak bonuses" 
@@ -131,7 +137,9 @@ BEGIN
             END IF;
             
             -- Count clean eating streak (no negative points)
-            IF COALESCE(v_log.negative_points, 0) >= 0 THEN
+            -- FIX: negative_points is stored as negative integers (-5, -10, -15)
+            -- Check if it's 0 or NULL (no slip-ups)
+            IF COALESCE(v_log.negative_points, 0) = 0 THEN
                 v_clean_streak := v_clean_streak + 1;
             ELSE
                 v_clean_streak := 0; -- Reset if had slip-ups

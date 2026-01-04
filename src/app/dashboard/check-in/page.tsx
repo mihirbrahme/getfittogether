@@ -176,95 +176,90 @@ export default function CheckInPage() {
     };
 
     const handleSubmit = async () => {
+        // Prevent duplicate submissions
+        if (submitting) return;
+
         setSubmitting(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
 
-        const today = getToday();
-
-        // Calculate total points
-        let totalPoints = 0;
-
-        // Points from activities
-        activities.forEach(activity => {
-            if (responses[`activity_${activity.id}`] === true) {
-                totalPoints += activity.points;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error('Not authenticated');
             }
-        });
 
-        // Points from goals
-        assignedGoals.forEach(goal => {
-            if (responses[`goal_${goal.slot}`] === true) {
-                totalPoints += goal.goal_templates.points;
-            }
-        });
+            const today = getToday();
 
-        // Calculate negative points from slip-ups
-        let negativePoints = 0;
-        if (slipups.junk_food) negativePoints -= 5;
-        if (slipups.processed_sugar) negativePoints -= 5;
-        if (slipups.alcohol_excess) negativePoints -= 5;
-        totalPoints += negativePoints;
+            // Calculate total points with validation
+            let totalPoints = 0;
 
-        // Insert/update daily log with custom_logs and slip-ups
-        const { error } = await supabase
-            .from('daily_logs')
-            .upsert({
-                user_id: user.id,
-                date: today,
-                daily_points: totalPoints,
-                custom_logs: responses,
-                junk_food: slipups.junk_food,
-                processed_sugar: slipups.processed_sugar,
-                alcohol_excess: slipups.alcohol_excess,
-                negative_points: negativePoints
+            // Points from activities (with validation)
+            activities.forEach(activity => {
+                if (responses[`activity_${activity.id}`] === true) {
+                    // Validate activity points are reasonable
+                    const points = Math.max(0, Math.min(50, activity.points || 0));
+                    totalPoints += points;
+                }
             });
 
-        if (!error) {
-            // Recalculate total points as sum of ALL point sources
-            const { data: allLogs } = await supabase
+            // Points from goals (with validation)
+            assignedGoals.forEach(goal => {
+                if (responses[`goal_${goal.slot}`] === true) {
+                    // Validate goal points are reasonable
+                    const points = Math.max(0, Math.min(10, goal.goal_templates.points || 0));
+                    totalPoints += points;
+                }
+            });
+
+            // Calculate negative points with bounds checking (max -15 for 3 slip-ups)
+            let negativePoints = 0;
+            if (slipups.junk_food) negativePoints -= 5;
+            if (slipups.processed_sugar) negativePoints -= 5;
+            if (slipups.alcohol_excess) negativePoints -= 5;
+
+            // Ensure negative points are within valid range
+            negativePoints = Math.max(-15, Math.min(0, negativePoints));
+            totalPoints += negativePoints;
+
+            // Insert/update daily log with validation
+            const { error } = await supabase
                 .from('daily_logs')
-                .select('daily_points')
-                .eq('user_id', user.id);
+                .upsert({
+                    user_id: user.id,
+                    date: today,
+                    daily_points: totalPoints,
+                    custom_logs: responses,
+                    junk_food: Boolean(slipups.junk_food),
+                    processed_sugar: Boolean(slipups.processed_sugar),
+                    alcohol_excess: Boolean(slipups.alcohol_excess),
+                    negative_points: negativePoints
+                });
 
-            const dailyTotal = allLogs?.reduce((sum, log) => sum + (log.daily_points || 0), 0) || 0;
+            if (error) {
+                throw new Error(`Failed to submit check-in: ${error.message}`);
+            }
 
-            // Get current streak bonus points
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('streak_bonus_points')
-                .eq('id', user.id)
-                .single();
-
-            const streakBonus = profile?.streak_bonus_points || 0;
-
-            // Get sum of admin weekly points
-            const { data: adminPoints } = await supabase
-                .from('admin_weekly_points')
-                .select('consistency_points, effort_points, community_points')
-                .eq('user_id', user.id);
-
-            const adminTotal = adminPoints?.reduce((sum, week) => 
-                sum + (week.consistency_points || 0) + (week.effort_points || 0) + (week.community_points || 0), 0) || 0;
-
-            // Calculate final total
-            const calculatedTotal = dailyTotal + streakBonus + adminTotal;
-
-            await supabase
-                .from('profiles')
-                .update({ total_points: calculatedTotal })
-                .eq('id', user.id);
+            // NOTE: total_points is now auto-calculated by database trigger
+            // No need for manual recalculation - prevents race conditions
 
             // Log audit event
-            await logCheckIn(user.id, today, totalPoints);
+            try {
+                await logCheckIn(user.id, today, totalPoints);
+            } catch (auditError) {
+                // Non-blocking - audit log failure shouldn't stop submission
+                console.warn('Audit log failed:', auditError);
+            }
 
             // Trigger celebration!
             setEarnedPoints(totalPoints);
             setShowConfetti(true);
             setAlreadySubmitted(true);
-        }
 
-        setSubmitting(false);
+        } catch (error: any) {
+            console.error('Check-in submission error:', error);
+            alert(`Failed to submit check-in: ${error.message || 'Unknown error'}. Please try again.`);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const allAnswered = () => {
