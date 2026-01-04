@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Search, Tag as TagIcon, Check, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Search, Tag as TagIcon, Check, Loader2, ChevronDown, ChevronUp, Trash2, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseLocalDate } from '@/lib/dateUtils';
 
 interface Exercise {
     id: string;
@@ -55,10 +56,55 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
     const [selectedSquads, setSelectedSquads] = useState<string[]>([]);
     const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
     const [assigning, setAssigning] = useState(false);
+    const [existingWorkout, setExistingWorkout] = useState<{ templateId: string; templateName: string; squads: string[] } | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const isEditMode = !!editingWorkoutId;
 
     useEffect(() => {
         fetchData();
     }, []);
+
+    useEffect(() => {
+        if (editingWorkoutId && templates.length > 0 && groups.length > 0) {
+            fetchExistingWorkout();
+        }
+    }, [editingWorkoutId, templates.length, groups.length]);
+
+    const fetchExistingWorkout = async () => {
+        if (!editingWorkoutId) return;
+
+        // Fetch the scheduled workout
+        const { data: workout } = await supabase
+            .from('scheduled_workouts')
+            .select(`
+                id,
+                template_id,
+                workout_templates (name)
+            `)
+            .eq('id', editingWorkoutId)
+            .single();
+
+        if (workout) {
+            // Fetch assigned squads
+            const { data: squadAssignments } = await supabase
+                .from('scheduled_workout_squads')
+                .select('group_id')
+                .eq('workout_id', editingWorkoutId);
+
+            const assignedSquads = squadAssignments?.map(s => s.group_id) || [];
+
+            setExistingWorkout({
+                templateId: workout.template_id,
+                templateName: (workout.workout_templates as any)?.name || 'Unknown',
+                squads: assignedSquads
+            });
+
+            // Pre-select the current template and squads
+            const currentTemplate = templates.find(t => t.id === workout.template_id);
+            if (currentTemplate) setSelectedTemplate(currentTemplate);
+            setSelectedSquads(assignedSquads);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -103,30 +149,58 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
         setAssigning(true);
 
         try {
-            // Create scheduled workout
-            const { data: scheduledWorkout, error: workoutError } = await supabase
-                .from('scheduled_workouts')
-                .insert({
-                    template_id: selectedTemplate.id,
-                    date: date,
-                    customized: false
-                })
-                .select()
-                .single();
+            if (isEditMode && editingWorkoutId) {
+                // Update existing workout
+                // First, delete old squad assignments
+                await supabase
+                    .from('scheduled_workout_squads')
+                    .delete()
+                    .eq('workout_id', editingWorkoutId);
 
-            if (workoutError) throw workoutError;
+                // Update the workout template
+                await supabase
+                    .from('scheduled_workouts')
+                    .update({
+                        template_id: selectedTemplate.id,
+                        date: date
+                    })
+                    .eq('id', editingWorkoutId);
 
-            // Assign to squads
-            const squadAssignments = selectedSquads.map(squadId => ({
-                workout_id: scheduledWorkout.id,
-                group_id: squadId
-            }));
+                // Add new squad assignments
+                const squadAssignments = selectedSquads.map(squadId => ({
+                    workout_id: editingWorkoutId,
+                    group_id: squadId
+                }));
 
-            const { error: assignError } = await supabase
-                .from('scheduled_workout_squads')
-                .insert(squadAssignments);
+                await supabase
+                    .from('scheduled_workout_squads')
+                    .insert(squadAssignments);
+            } else {
+                // Create new scheduled workout
+                const { data: scheduledWorkout, error: workoutError } = await supabase
+                    .from('scheduled_workouts')
+                    .insert({
+                        template_id: selectedTemplate.id,
+                        date: date,
+                        customized: false
+                    })
+                    .select()
+                    .single();
 
-            if (assignError) throw assignError;
+                if (workoutError) throw workoutError;
+
+                // Assign to squads
+                const squadAssignments = selectedSquads.map(squadId => ({
+                    workout_id: scheduledWorkout.id,
+                    group_id: squadId
+                }));
+
+                const { error: assignError } = await supabase
+                    .from('scheduled_workout_squads')
+                    .insert(squadAssignments);
+
+                if (assignError) throw assignError;
+            }
 
             onAssign();
             onClose();
@@ -135,6 +209,34 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
             alert('Failed to assign workout');
         } finally {
             setAssigning(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!editingWorkoutId) return;
+        if (!confirm('Are you sure you want to remove this workout from the calendar?')) return;
+
+        setDeleting(true);
+        try {
+            // Delete squad assignments first
+            await supabase
+                .from('scheduled_workout_squads')
+                .delete()
+                .eq('workout_id', editingWorkoutId);
+
+            // Delete the scheduled workout
+            await supabase
+                .from('scheduled_workouts')
+                .delete()
+                .eq('id', editingWorkoutId);
+
+            onAssign();
+            onClose();
+        } catch (error) {
+            console.error('Error deleting workout:', error);
+            alert('Failed to delete workout');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -173,12 +275,24 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
                 {/* Header */}
                 <div className="p-8 border-b border-zinc-100 flex items-center justify-between shrink-0">
                     <div>
-                        <h2 className="text-2xl font-black italic uppercase text-zinc-900 tracking-tighter">
-                            Assign Workout
+                        <h2 className="text-2xl font-black italic uppercase text-zinc-900 tracking-tighter flex items-center gap-3">
+                            {isEditMode ? (
+                                <>
+                                    <Edit3 className="h-6 w-6 text-blue-500" />
+                                    Edit Workout
+                                </>
+                            ) : (
+                                'Assign Workout'
+                            )}
                         </h2>
                         <p className="text-sm text-zinc-500 font-semibold mt-1">
-                            {new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            {parseLocalDate(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
+                        {isEditMode && existingWorkout && (
+                            <p className="text-xs text-blue-600 font-bold mt-1">
+                                Currently assigned: {existingWorkout.templateName}
+                            </p>
+                        )}
                     </div>
                     <button
                         onClick={onClose}
@@ -358,6 +472,20 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
 
                 {/* Footer */}
                 <div className="p-8 border-t border-zinc-100 flex gap-4 shrink-0">
+                    {isEditMode && (
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="px-6 py-4 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all font-black uppercase text-sm flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {deleting ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            ) : (
+                                <Trash2 className="h-5 w-5" />
+                            )}
+                            Remove
+                        </button>
+                    )}
                     <button
                         onClick={onClose}
                         className="px-8 py-4 rounded-xl bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-all font-black uppercase text-sm"
@@ -372,10 +500,10 @@ export default function CalendarAssignModal({ date, onClose, onAssign, editingWo
                         {assigning ? (
                             <>
                                 <Loader2 className="h-5 w-5 animate-spin" />
-                                Assigning...
+                                {isEditMode ? 'Updating...' : 'Assigning...'}
                             </>
                         ) : (
-                            'Assign Workout'
+                            isEditMode ? 'Update Workout' : 'Assign Workout'
                         )}
                     </button>
                 </div>

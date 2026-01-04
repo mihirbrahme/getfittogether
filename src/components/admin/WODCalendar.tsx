@@ -39,6 +39,7 @@ export default function WODCalendar() {
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [showAssignModal, setShowAssignModal] = useState(false);
+    const [editingWorkoutId, setEditingWorkoutId] = useState<string | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -188,9 +189,13 @@ export default function WODCalendar() {
                                 key={index}
                                 onClick={() => {
                                     if (workout) {
-                                        // Handle view/edit existing workout
+                                        // Edit existing workout
+                                        setSelectedDate(formatDate(day, 'iso'));
+                                        setEditingWorkoutId(workout.id);
+                                        setShowAssignModal(true);
                                     } else if (inCurrentMonth) {
                                         setSelectedDate(formatDate(day, 'iso'));
+                                        setEditingWorkoutId(null);
                                         setShowAssignModal(true);
                                     }
                                 }}
@@ -272,9 +277,11 @@ export default function WODCalendar() {
             {showAssignModal && selectedDate && (
                 <CalendarAssignModal
                     date={selectedDate}
+                    editingWorkoutId={editingWorkoutId}
                     onClose={() => {
                         setShowAssignModal(false);
                         setSelectedDate(null);
+                        setEditingWorkoutId(null);
                     }}
                     onAssign={() => {
                         fetchData();

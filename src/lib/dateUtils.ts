@@ -28,6 +28,18 @@ export function formatDate(date: Date, style: 'full' | 'long' | 'short' | 'iso' 
 }
 
 /**
+ * Parse a YYYY-MM-DD string as local timezone (not UTC)
+ * CRITICAL: new Date('YYYY-MM-DD') parses as UTC midnight, which shows as
+ * previous day in IST. This function parses as local midnight instead.
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @returns Date object at local midnight
+ */
+export function parseLocalDate(dateStr: string): Date {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+/**
  * Format time (e.g., "2:30 PM")
  * @param date - Date to extract time from
  * @returns Formatted time string
