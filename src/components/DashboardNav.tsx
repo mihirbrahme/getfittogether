@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ClipboardList, CheckCircle, Users, Target, Settings, LogOut, TrendingUp, Calendar, MoreHorizontal, X } from 'lucide-react';
+import { Home, ClipboardList, CheckCircle, Users, Target, Settings, LogOut, TrendingUp, Calendar, MoreHorizontal, X, PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
-// Desktop: All 8 nav items
+// Desktop: All nav items
 const allNavItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'WOD', href: '/dashboard/wod', icon: ClipboardList },
@@ -15,6 +15,7 @@ const allNavItems = [
     { name: 'Progress', href: '/dashboard/progress', icon: TrendingUp },
     { name: 'History', href: '/dashboard/history', icon: Calendar },
     { name: 'Squad', href: '/dashboard/squad', icon: Users },
+    { name: 'Events', href: '/dashboard/events', icon: PartyPopper },
     { name: 'Goals', href: '/dashboard/goals', icon: Target },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
@@ -31,6 +32,7 @@ const mobileNavItems = [
 const moreMenuItems = [
     { name: 'Progress', href: '/dashboard/progress', icon: TrendingUp },
     { name: 'History', href: '/dashboard/history', icon: Calendar },
+    { name: 'Events', href: '/dashboard/events', icon: PartyPopper },
     { name: 'Goals', href: '/dashboard/goals', icon: Target },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://getfittogether.vercel.app/sitemap.xml

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy, Sparkles, TrendingUp } from 'lucide-react';
+import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy, Sparkles, TrendingUp, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EventScheduler from '@/components/admin/EventScheduler';
 import WODManager from '@/components/admin/WODManager';
@@ -12,6 +12,8 @@ import BulkWODScheduler from '@/components/admin/BulkWODScheduler';
 import WODCalendar from '@/components/admin/WODCalendar';
 import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
 import OverviewDashboard from '@/components/admin/OverviewDashboard';
+import AdminPointsAwarder from '@/components/admin/AdminPointsAwarder';
+import StreakCalculator from '@/components/admin/StreakCalculator';
 import { cn } from '@/lib/utils';
 
 export default function AdminPage() {
@@ -64,6 +66,8 @@ export default function AdminPage() {
         { id: 'calendar', label: 'CALENDAR', icon: Calendar },
         { id: 'groups', label: 'SQUADS', icon: Users },
         { id: 'events', label: 'EVENTS', icon: Activity },
+        { id: 'points', label: 'AWARD POINTS', icon: Trophy },
+        { id: 'streaks', label: 'STREAKS', icon: Zap },
     ];
 
     if (loading) {
@@ -156,6 +160,8 @@ export default function AdminPage() {
                         {activeTab === 'calendar' && <WODCalendar />}
                         {activeTab === 'events' && <EventScheduler />}
                         {activeTab === 'groups' && <GroupManager />}
+                        {activeTab === 'points' && <AdminPointsAwarder />}
+                        {activeTab === 'streaks' && <StreakCalculator />}
                     </div>
                 </div>
             </main>

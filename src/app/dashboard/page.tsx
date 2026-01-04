@@ -11,6 +11,8 @@ import StreakBadge from '@/components/StreakBadge';
 import WODPreview from '@/components/WODPreview';
 import AnimatedNumber from '@/components/AnimatedNumber';
 import ProgressRing from '@/components/ProgressRing';
+import PhaseBanner from '@/components/PhaseBanner';
+import ProgressPrompt from '@/components/ProgressPrompt';
 
 const TOTAL_DAYS = 70;
 const MAX_DAILY_POINTS = 75; // WOD(25) + Steps(10) + Diet(10) + Sleep(10) + Hydration(10) + Goals(10)
@@ -28,6 +30,8 @@ export default function Dashboard() {
     const [totalPoints, setTotalPoints] = useState(0);
     const [todayPoints, setTodayPoints] = useState(0);
     const [todayCompletion, setTodayCompletion] = useState(0);
+    const [lastBiometricDate, setLastBiometricDate] = useState<string | null>(null);
+    const [showProgressPrompt, setShowProgressPrompt] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -111,6 +115,19 @@ export default function Dashboard() {
                 setTodayCompletion(Math.round(((todayLog.daily_points || 0) / MAX_DAILY_POINTS) * 100));
             }
 
+            // Fetch last biometric entry for progress prompts
+            const { data: lastBiometric } = await supabase
+                .from('biometric_logs')
+                .select('created_at')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (lastBiometric) {
+                setLastBiometricDate(lastBiometric.created_at);
+            }
+
             setLoading(false);
         };
         fetchData();
@@ -154,6 +171,19 @@ export default function Dashboard() {
                     {streak > 0 && <StreakBadge streak={streak} size="sm" />}
                 </div>
             </div>
+
+            {/* Phase Banner */}
+            <PhaseBanner currentDay={currentDay} />
+
+            {/* Progress Prompt (shows every 14 days) */}
+            {showProgressPrompt && (
+                <ProgressPrompt
+                    currentDay={currentDay}
+                    lastBiometricDate={lastBiometricDate}
+                    onDismiss={() => setShowProgressPrompt(false)}
+                    onLogProgress={() => router.push('/dashboard/progress')}
+                />
+            )}
 
             {/* Today's Progress Ring + Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
