@@ -13,6 +13,8 @@ interface Group {
     code: string;
     admin_id: string;
     created_at: string;
+    start_date?: string | null;
+    end_date?: string | null;
     member_count?: number;
     pending_count?: number;
 }
@@ -41,6 +43,8 @@ export default function GroupManager() {
     const [newGroupName, setNewGroupName] = useState('');
     const [selectedSquad, setSelectedSquad] = useState<string | null>(null);
     const [configTab, setConfigTab] = useState<'activities' | 'goals'>('activities');
+    const [editingDates, setEditingDates] = useState<string | null>(null);
+    const [tempDates, setTempDates] = useState<{ start: string, end: string }>({ start: '', end: '' });
 
     const fetchGroups = async () => {
         // In a real app, we'd use a more complex query or multiple calls to get counts
@@ -230,6 +234,88 @@ export default function GroupManager() {
                                     <Clipboard className="h-4 w-4" />
                                 </button>
                             </div>
+
+                            {/* Programme Dates */}
+                            {editingDates === group.id ? (
+                                <div className="space-y-3 p-4 bg-white rounded-xl border border-zinc-200">
+                                    <div>
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={tempDates.start}
+                                            onChange={(e) => setTempDates({ ...tempDates, start: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm font-medium"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">End Date (56 days)</label>
+                                        <input
+                                            type="date"
+                                            value={tempDates.end}
+                                            onChange={(e) => setTempDates({ ...tempDates, end: e.target.value })}
+                                            className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm font-medium"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                const { error } = await supabase
+                                                    .from('groups')
+                                                    .update({
+                                                        start_date: tempDates.start || null,
+                                                        end_date: tempDates.end || null
+                                                    })
+                                                    .eq('id', group.id);
+                                                if (!error) {
+                                                    setEditingDates(null);
+                                                    fetchGroups();
+                                                }
+                                            }}
+                                            className="flex-1 px-3 py-2 rounded-lg bg-emerald-500 text-white font-bold text-xs uppercase hover:bg-emerald-600 transition-all"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={() => setEditingDates(null)}
+                                            className="px-3 py-2 rounded-lg bg-zinc-100 text-zinc-600 font-bold text-xs uppercase hover:bg-zinc-200 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-zinc-400 font-bold uppercase">Programme:</span>
+                                        <button
+                                            onClick={() => {
+                                                setEditingDates(group.id);
+                                                setTempDates({
+                                                    start: group.start_date || '',
+                                                    end: group.end_date || ''
+                                                });
+                                            }}
+                                            className="text-blue-600 hover:text-blue-700 font-bold uppercase"
+                                        >
+                                            {group.start_date ? 'Edit' : 'Set Dates'}
+                                        </button>
+                                    </div>
+                                    {group.start_date && (
+                                        <div className="text-xs">
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-500">Start:</span>
+                                                <span className="font-mono font-bold">{new Date(group.start_date).toLocaleDateString()}</span>
+                                            </div>
+                                            {group.end_date && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-zinc-500">End:</span>
+                                                    <span className="font-mono font-bold">{new Date(group.end_date).toLocaleDateString()}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="flex items-center gap-2">
                                 <button

@@ -79,7 +79,7 @@ DROP POLICY IF EXISTS "Users can read squad members" ON group_members;
 DROP POLICY IF EXISTS "Admins can manage memberships" ON group_members;
 
 CREATE POLICY "Users can read own membership" ON group_members FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can read squad members" ON group_members FOR SELECT USING (EXISTS (SELECT 1 FROM group_members gm WHERE gm.user_id = auth.uid() AND gm.group_id = group_members.group_id AND gm.status = 'approved'));
+-- Note: Removed recursive "squad members" policy that caused infinite recursion
 CREATE POLICY "Admins can manage memberships" ON group_members FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'));
 
 -- =====================================================
