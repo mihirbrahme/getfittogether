@@ -4,6 +4,9 @@
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS start_date DATE;
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS end_date DATE;
 
+-- Drop constraint if exists, then add
+ALTER TABLE groups DROP CONSTRAINT IF EXISTS valid_date_range;
+
 -- Add constraint: end_date must be after start_date
 ALTER TABLE groups 
 ADD CONSTRAINT valid_date_range 

@@ -5,6 +5,10 @@
 -- PROFILES CONSTRAINTS
 -- =====================================================
 
+-- Drop existing constraints if they exist
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS positive_total_points;
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS positive_streaks;
+
 -- Ensure total_points is never negative
 ALTER TABLE profiles 
 ADD CONSTRAINT positive_total_points CHECK (total_points >= 0);
@@ -25,6 +29,8 @@ ADD CONSTRAINT positive_streaks CHECK (
 -- ADMIN WEEKLY POINTS CONSTRAINTS
 -- =====================================================
 
+ALTER TABLE admin_weekly_points DROP CONSTRAINT IF EXISTS valid_admin_points;
+
 -- Limit admin points to 0-10 per category
 ALTER TABLE admin_weekly_points
 ADD CONSTRAINT valid_admin_points CHECK (
@@ -36,6 +42,9 @@ ADD CONSTRAINT valid_admin_points CHECK (
 -- =====================================================
 -- DAILY LOGS CONSTRAINTS
 -- =====================================================
+
+ALTER TABLE daily_logs DROP CONSTRAINT IF EXISTS negative_points_check;
+ALTER TABLE daily_logs DROP CONSTRAINT IF EXISTS reasonable_daily_points;
 
 -- Ensure negative_points is never positive (it's for deductions)
 ALTER TABLE daily_logs
@@ -53,6 +62,8 @@ ADD CONSTRAINT reasonable_daily_points CHECK (
 -- STREAK MILESTONES CONSTRAINTS
 -- =====================================================
 
+ALTER TABLE streak_milestones DROP CONSTRAINT IF EXISTS positive_milestone_values;
+
 -- Ensure milestone values are positive
 ALTER TABLE streak_milestones
 ADD CONSTRAINT positive_milestone_values CHECK (
@@ -64,6 +75,8 @@ ADD CONSTRAINT positive_milestone_values CHECK (
 -- SQUAD CHECKIN ACTIVITIES CONSTRAINTS
 -- =====================================================
 
+ALTER TABLE squad_checkin_activities DROP CONSTRAINT IF EXISTS reasonable_activity_points;
+
 -- Ensure points are reasonable
 ALTER TABLE squad_checkin_activities
 ADD CONSTRAINT reasonable_activity_points CHECK (
@@ -73,6 +86,8 @@ ADD CONSTRAINT reasonable_activity_points CHECK (
 -- =====================================================
 -- EVENTS CONSTRAINTS
 -- =====================================================
+
+ALTER TABLE events DROP CONSTRAINT IF EXISTS positive_bonus_points;
 
 -- Ensure bonus points are non-negative
 ALTER TABLE events

@@ -13,6 +13,7 @@ DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can read squad members profiles" ON profiles;
 DROP POLICY IF EXISTS "Admins can read all profiles" ON profiles;
 DROP POLICY IF EXISTS "Admins can update profiles" ON profiles;
+DROP POLICY IF EXISTS "Authenticated can read profiles" ON profiles;
 
 -- Simple, non-recursive policies
 CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
@@ -34,6 +35,7 @@ DROP POLICY IF EXISTS "Users can read own membership" ON group_members;
 DROP POLICY IF EXISTS "Users can read squad members" ON group_members;
 DROP POLICY IF EXISTS "Admins can manage memberships" ON group_members;
 DROP POLICY IF EXISTS "Users can read related memberships" ON group_members;
+DROP POLICY IF EXISTS "Authenticated can read memberships" ON group_members;
 
 CREATE POLICY "Users can read own membership" ON group_members FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Authenticated can read memberships" ON group_members FOR SELECT TO authenticated USING (true);
@@ -58,9 +60,10 @@ DROP POLICY IF EXISTS "Admins can read all biometrics" ON biometric_logs;
 -- =====================================================
 
 DROP POLICY IF EXISTS "Admins can manage groups" ON groups;
+DROP POLICY IF EXISTS "Users can read own groups" ON groups;
+DROP POLICY IF EXISTS "Authenticated can read groups" ON groups;
 
 -- Allow all authenticated users to read groups (needed for squad selection)
-DROP POLICY IF EXISTS "Users can read own groups" ON groups;
 CREATE POLICY "Authenticated can read groups" ON groups FOR SELECT TO authenticated USING (true);
 
 -- =====================================================

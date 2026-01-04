@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { TrendingUp, Users, Target, Calendar, Zap, Trophy, Activity } from 'lucide-react';
+import { TrendingUp, Users, Target, Calendar, Zap, Trophy, Activity, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ParticipantDetailsView from './ParticipantDetailsView';
 
 interface CompletionStats {
     totalWods: number;
@@ -44,6 +45,7 @@ export default function AnalyticsDashboard() {
     const [timeRange, setTimeRange] = useState<'7' | '30' | '90'>('30');
     const [selectedSquad, setSelectedSquad] = useState<string | null>(null);
     const [expandedSquad, setExpandedSquad] = useState<string | null>(null);
+    const [selectedParticipant, setSelectedParticipant] = useState<{ userId: string; fullName: string } | null>(null);
 
     useEffect(() => {
         fetchAnalytics();
@@ -362,18 +364,23 @@ export default function AnalyticsDashboard() {
                                     <h5 className="text-sm font-black uppercase text-zinc-600 mb-4">Squad Members</h5>
                                     <div className="space-y-3">
                                         {squad.members.map((member, idx) => (
-                                            <div key={member.userId} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-zinc-100">
+                                            <div
+                                                key={member.userId}
+                                                onClick={() => setSelectedParticipant({ userId: member.userId, fullName: member.fullName })}
+                                                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-zinc-100 hover:border-[#FF5E00]/30 hover:shadow-md transition-all cursor-pointer group/member"
+                                            >
                                                 <div className="h-10 w-10 bg-zinc-100 rounded-xl flex items-center justify-center text-sm font-black text-zinc-400">
                                                     #{idx + 1}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className="font-black text-zinc-900 text-sm">{member.fullName}</p>
+                                                    <p className="font-black text-zinc-900 text-sm group-hover/member:text-[#FF5E00] transition-colors">{member.fullName}</p>
                                                     <p className="text-xs text-zinc-400 font-semibold">{member.checkInCount} check-ins</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="text-xl font-black italic text-emerald-600">{member.totalPoints}</span>
                                                     <p className="text-[8px] font-black uppercase text-zinc-400">XP</p>
                                                 </div>
+                                                <Eye className="h-5 w-5 text-zinc-300 group-hover/member:text-[#FF5E00] transition-colors" />
                                             </div>
                                         ))}
                                     </div>
@@ -404,6 +411,15 @@ export default function AnalyticsDashboard() {
                     ))}
                 </div>
             </div>
+
+            {/* Participant Details Modal */}
+            {selectedParticipant && (
+                <ParticipantDetailsView
+                    userId={selectedParticipant.userId}
+                    userName={selectedParticipant.fullName}
+                    onClose={() => setSelectedParticipant(null)}
+                />
+            )}
         </section>
     );
 }
