@@ -198,21 +198,21 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">First Name</label>
                             <input
-                                placeholder="JOHN"
+                                placeholder="John"
                                 required
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                             />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Last Name</label>
                             <input
-                                placeholder="DOE"
+                                placeholder="Doe"
                                 required
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
-                                className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                                className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl px-5 py-4 text-zinc-900 font-bold text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                             />
                         </div>
                     </div>
@@ -224,11 +224,11 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                         <Mail className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-300 group-focus-within/input:text-[#FF5E00] transition-colors" />
                         <input
                             type="email"
-                            placeholder="EMAIL@EXAMPLE.COM"
+                            placeholder="email@example.com"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl pl-14 pr-6 py-4 text-zinc-900 font-bold uppercase text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
+                            className="w-full bg-zinc-50 border border-zinc-100 rounded-2xl pl-14 pr-6 py-4 text-zinc-900 font-bold text-xs focus:outline-none focus:border-[#FF5E00]/30 transition-all placeholder:text-zinc-200"
                         />
                     </div>
                 </div>
