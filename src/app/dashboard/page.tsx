@@ -108,11 +108,70 @@ export default function Dashboard() {
             }
             setStreak(consecutiveDays);
 
-            // Today's points
-            const todayLog = logs?.find(l => l.date === todayStr);
-            if (todayLog) {
-                setTodayPoints(todayLog.daily_points || 0);
-                setTodayCompletion(Math.round(((todayLog.daily_points || 0) / MAX_DAILY_POINTS) * 100));
+            // Today's points - recalculate from custom_logs instead of trusting stored value
+            const { data: todayLogFull } = await supabase
+                .from('daily_logs')
+                .select('daily_points, custom_logs, junk_food, processed_sugar, alcohol_excess')
+                .eq('user_id', user.id)
+                .eq('date', todayStr)
+                .single();
+
+            if (todayLogFull?.custom_logs) {
+                // Fetch activities and goals to get actual point values
+                const { data: membership } = await supabase
+                    .from('group_members')
+                    .select('group_id')
+                    .eq('user_id', user.id)
+                    .single();
+
+                let recalculatedPoints = 0;
+                const customLogs = todayLogFull.custom_logs as Record<string, boolean>;
+
+                if (membership?.group_id) {
+                    const { data: activities } = await supabase
+                        .from('squad_checkin_activities')
+                        .select('id, points')
+                        .eq('squad_id', membership.group_id)
+                        .eq('enabled', true);
+
+                    if (activities) {
+                        activities.forEach(a => {
+                            if (customLogs[`activity_${a.id}`] === true) {
+                                recalculatedPoints += Math.max(0, a.points || 0);
+                            }
+                        });
+                    }
+                }
+
+                const { data: userGoals } = await supabase
+                    .from('user_goal_assignments')
+                    .select('slot, goal_templates(points)')
+                    .eq('user_id', user.id);
+
+                if (userGoals) {
+                    userGoals.forEach((g: any) => {
+                        if (customLogs[`goal_${g.slot}`] === true) {
+                            recalculatedPoints += Math.max(0, g.goal_templates?.points || 0);
+                        }
+                    });
+                }
+
+                // Slipups
+                if (todayLogFull.junk_food) recalculatedPoints -= 5;
+                if (todayLogFull.processed_sugar) recalculatedPoints -= 5;
+                if (todayLogFull.alcohol_excess) recalculatedPoints -= 5;
+
+                setTodayPoints(recalculatedPoints);
+                setTodayCompletion(Math.round((recalculatedPoints / MAX_DAILY_POINTS) * 100));
+
+                // Auto-fix stored value if wrong
+                if (recalculatedPoints !== (todayLogFull.daily_points || 0)) {
+                    await supabase
+                        .from('daily_logs')
+                        .update({ daily_points: recalculatedPoints })
+                        .eq('user_id', user.id)
+                        .eq('date', todayStr);
+                }
             }
 
             // Fetch last biometric entry for progress prompts
