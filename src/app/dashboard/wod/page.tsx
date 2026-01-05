@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar, Dumbbell, Clock, Repeat, Timer, Package, Video, AlertCircle } from 'lucide-react';
+import { Calendar, Dumbbell, Clock, Repeat, Timer, Package, Video, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import DateDisplay from '@/components/DateDisplay';
-import YouTubeEmbed from '@/components/YouTubeEmbed';
+import { VideoThumbnailButton } from '@/components/VideoModal';
 import WeekScheduleStrip from '@/components/WeekScheduleStrip';
 import { formatDate, parseLocalDate } from '@/lib/dateUtils';
+import { cn } from '@/lib/utils';
 
 interface Exercise {
     id: string;
@@ -42,6 +43,7 @@ export default function WODPage() {
     const [error, setError] = useState('');
     const [selectedDate, setSelectedDate] = useState(() => formatDate(new Date(), 'iso'));
     const [userGroupId, setUserGroupId] = useState<string | null>(null);
+    const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
 
     useEffect(() => {
         checkAuthAndFetchWOD();
@@ -235,87 +237,135 @@ export default function WODPage() {
                         </div>
                     </div>
 
-                    {/* Exercises List */}
-                    <div className="space-y-4">
-                        <h2 className="text-2xl font-black italic uppercase text-zinc-900 px-4">
+                    {/* Exercises List - Accordion Style for Mobile */}
+                    <div className="space-y-3">
+                        <h2 className="text-xl md:text-2xl font-black italic uppercase text-zinc-900 px-2 md:px-4">
                             Exercises ({workout.exercises.length})
                         </h2>
 
-                        {workout.exercises.map((exercise, index) => (
-                            <div key={exercise.id} className="premium-card rounded-[2rem] p-6 hover:scale-[1.01] transition-all">
-                                <div className="flex items-start gap-4">
-                                    {/* Exercise Number */}
-                                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#FF5E00] to-orange-600 text-white flex items-center justify-center font-black text-xl shrink-0">
-                                        {index + 1}
-                                    </div>
+                        {workout.exercises.map((exercise, index) => {
+                            const isExpanded = expandedExercise === exercise.id;
+                            const quickInfo = [
+                                exercise.sets && `${exercise.sets} sets`,
+                                exercise.reps && `${exercise.reps} reps`,
+                                exercise.duration_seconds && `${exercise.duration_seconds}s`
+                            ].filter(Boolean).join(' × ');
 
-                                    {/* Exercise Details */}
-                                    <div className="flex-1 space-y-3">
-                                        <h3 className="text-xl font-black uppercase text-zinc-900">
-                                            {exercise.exercise_name}
-                                        </h3>
+                            return (
+                                <div key={exercise.id} className="premium-card rounded-2xl md:rounded-[2rem] overflow-hidden">
+                                    {/* Collapsed Header - Always Visible */}
+                                    <button
+                                        onClick={() => setExpandedExercise(isExpanded ? null : exercise.id)}
+                                        className="w-full p-4 md:p-6 flex items-center gap-3 md:gap-4 text-left"
+                                    >
+                                        {/* Exercise Number */}
+                                        <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-[#FF5E00] to-orange-600 text-white flex items-center justify-center font-black text-lg md:text-xl shrink-0">
+                                            {index + 1}
+                                        </div>
 
-                                        {/* Reps/Sets/Duration */}
-                                        <div className="flex flex-wrap gap-4">
-                                            {exercise.sets && (
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Repeat className="h-4 w-4 text-[#FF5E00]" />
-                                                    <span className="font-black text-zinc-700">{exercise.sets}</span>
-                                                    <span className="text-zinc-500">sets</span>
-                                                </div>
-                                            )}
-                                            {exercise.reps && (
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Dumbbell className="h-4 w-4 text-[#FF5E00]" />
-                                                    <span className="font-black text-zinc-700">{exercise.reps}</span>
-                                                    <span className="text-zinc-500">reps</span>
-                                                </div>
-                                            )}
-                                            {exercise.duration_seconds && (
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Timer className="h-4 w-4 text-[#FF5E00]" />
-                                                    <span className="font-black text-zinc-700">{exercise.duration_seconds}s</span>
-                                                    <span className="text-zinc-500">duration</span>
-                                                </div>
-                                            )}
-                                            {exercise.rest_seconds > 0 && (
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Clock className="h-4 w-4 text-blue-500" />
-                                                    <span className="font-black text-zinc-700">{exercise.rest_seconds}s</span>
-                                                    <span className="text-zinc-500">rest</span>
-                                                </div>
-                                            )}
-                                            {exercise.equipment && (
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <Package className="h-4 w-4 text-purple-500" />
-                                                    <span className="font-semibold text-zinc-600">{exercise.equipment}</span>
-                                                </div>
+                                        {/* Name + Quick Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-base md:text-xl font-black uppercase text-zinc-900 truncate">
+                                                {exercise.exercise_name}
+                                            </h3>
+                                            {quickInfo && (
+                                                <p className="text-xs md:text-sm text-zinc-500 font-semibold">
+                                                    {quickInfo}
+                                                </p>
                                             )}
                                         </div>
 
-                                        {/* Notes */}
-                                        {exercise.notes && (
-                                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                                                <p className="text-sm text-amber-900 font-medium">
-                                                    💡 {exercise.notes}
-                                                </p>
-                                            </div>
-                                        )}
+                                        {/* Video indicator + Expand icon */}
+                                        <div className="flex items-center gap-2">
+                                            {exercise.video_url && (
+                                                <Video className="h-4 w-4 text-red-500" />
+                                            )}
+                                            {isExpanded ? (
+                                                <ChevronUp className="h-5 w-5 text-zinc-400" />
+                                            ) : (
+                                                <ChevronDown className="h-5 w-5 text-zinc-400" />
+                                            )}
+                                        </div>
+                                    </button>
 
-                                        {/* Video */}
-                                        {exercise.video_url && (
-                                            <div className="mt-4">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Video className="h-4 w-4 text-red-500" />
-                                                    <span className="text-xs font-black uppercase text-zinc-500">Video Guide</span>
-                                                </div>
-                                                <YouTubeEmbed url={exercise.video_url} />
+                                    {/* Expanded Details */}
+                                    {isExpanded && (
+                                        <div className="px-4 pb-4 md:px-6 md:pb-6 space-y-4 border-t border-zinc-100 pt-4">
+                                            {/* Full Details Grid */}
+                                            <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 md:gap-4">
+                                                {exercise.sets && (
+                                                    <div className="flex items-center gap-2 bg-zinc-50 rounded-lg p-3">
+                                                        <Repeat className="h-5 w-5 text-[#FF5E00]" />
+                                                        <div>
+                                                            <span className="font-black text-zinc-900 text-lg">{exercise.sets}</span>
+                                                            <span className="text-zinc-500 text-sm ml-1">sets</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {exercise.reps && (
+                                                    <div className="flex items-center gap-2 bg-zinc-50 rounded-lg p-3">
+                                                        <Dumbbell className="h-5 w-5 text-[#FF5E00]" />
+                                                        <div>
+                                                            <span className="font-black text-zinc-900 text-lg">{exercise.reps}</span>
+                                                            <span className="text-zinc-500 text-sm ml-1">reps</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {exercise.duration_seconds && (
+                                                    <div className="flex items-center gap-2 bg-zinc-50 rounded-lg p-3">
+                                                        <Timer className="h-5 w-5 text-[#FF5E00]" />
+                                                        <div>
+                                                            <span className="font-black text-zinc-900 text-lg">{exercise.duration_seconds}s</span>
+                                                            <span className="text-zinc-500 text-sm ml-1">duration</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {exercise.rest_seconds > 0 && (
+                                                    <div className="flex items-center gap-2 bg-blue-50 rounded-lg p-3">
+                                                        <Clock className="h-5 w-5 text-blue-500" />
+                                                        <div>
+                                                            <span className="font-black text-zinc-900 text-lg">{exercise.rest_seconds}s</span>
+                                                            <span className="text-zinc-500 text-sm ml-1">rest</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
+
+                                            {/* Equipment */}
+                                            {exercise.equipment && (
+                                                <div className="flex items-center gap-2 text-sm bg-purple-50 rounded-lg p-3">
+                                                    <Package className="h-5 w-5 text-purple-500" />
+                                                    <span className="font-semibold text-zinc-700">Equipment: {exercise.equipment}</span>
+                                                </div>
+                                            )}
+
+                                            {/* Notes */}
+                                            {exercise.notes && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                                    <p className="text-sm md:text-base text-amber-900 font-medium">
+                                                        💡 {exercise.notes}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Video - Fullscreen Modal on Tap */}
+                                            {exercise.video_url && (
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <Video className="h-5 w-5 text-red-500" />
+                                                        <span className="text-sm font-black uppercase text-zinc-600">Video Guide</span>
+                                                    </div>
+                                                    <VideoThumbnailButton
+                                                        url={exercise.video_url}
+                                                        title={exercise.exercise_name}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     {/* Summary Footer */}
