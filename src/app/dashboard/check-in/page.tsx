@@ -82,13 +82,15 @@ export default function CheckInPage() {
         // Points from activities
         activities.forEach(activity => {
             if (currentResponses[`activity_${activity.id}`] === true) {
-                total += Math.max(0, Math.min(50, activity.points || 0));
+                const pts = Math.max(0, activity.points || 0);
+                total += pts;
             }
         });
         // Points from goals
         assignedGoals.forEach(goal => {
             if (currentResponses[`goal_${goal.slot}`] === true) {
-                total += Math.max(0, Math.min(10, goal.goal_templates.points || 0));
+                const pts = Math.max(0, goal.goal_templates.points || 0);
+                total += pts;
             }
         });
         // Negative points from slipups
