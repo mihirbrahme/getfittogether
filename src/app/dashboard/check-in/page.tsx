@@ -34,16 +34,13 @@ interface AdminAssignedGoal {
 export default function CheckInPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
-    const [savingItem, setSavingItem] = useState<string | null>(null); // Track which item is being saved
+    const [submitting, setSubmitting] = useState(false);
     const [activities, setActivities] = useState<CheckInActivity[]>([]);
     const [assignedGoals, setAssignedGoals] = useState<AdminAssignedGoal[]>([]);
-    const [userId, setUserId] = useState<string | null>(null);
+    const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
-    // Activity responses: key -> boolean (true = done, false = not done)
-    const [responses, setResponses] = useState<Record<string, boolean>>({});
-
-    // Real-time points display
-    const [currentPoints, setCurrentPoints] = useState(0);
+    // Activity responses: key -> boolean | null
+    const [responses, setResponses] = useState<Record<string, boolean | null>>({});
 
     // Celebration state
     const [showConfetti, setShowConfetti] = useState(false);
@@ -76,41 +73,16 @@ export default function CheckInPage() {
         setAvailableDates(dates);
     }, []);
 
-    // Calculate current points from responses
-    const calculatePoints = useCallback((currentResponses: Record<string, boolean>, currentSlipups: typeof slipups) => {
-        let total = 0;
-        // Points from activities
-        activities.forEach(activity => {
-            if (currentResponses[`activity_${activity.id}`] === true) {
-                const pts = Math.max(0, activity.points || 0);
-                total += pts;
-            }
-        });
-        // Points from goals
-        assignedGoals.forEach(goal => {
-            if (currentResponses[`goal_${goal.slot}`] === true) {
-                const pts = Math.max(0, goal.goal_templates.points || 0);
-                total += pts;
-            }
-        });
-        // Negative points from slipups
-        if (currentSlipups.junk_food) total -= 5;
-        if (currentSlipups.processed_sugar) total -= 5;
-        if (currentSlipups.alcohol_excess) total -= 5;
-        return total;
-    }, [activities, assignedGoals]);
-
     // Fetch data when selectedDate changes
     const fetchDataForDate = useCallback(async (dateToFetch: string) => {
         setLoading(true);
+        setAlreadySubmitted(false);
         setResponses({});
         setSlipups({ junk_food: false, processed_sugar: false, alcohol_excess: false });
         setShowSlipups(false);
-        setCurrentPoints(0);
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return router.push('/auth?mode=login');
-        setUserId(user.id);
 
         // OPTIMIZED: Single RPC call replaces 5 separate queries
         const { data: context, error } = await supabase.rpc('get_checkin_context', {
@@ -134,76 +106,41 @@ export default function CheckInPage() {
         }));
         setAssignedGoals(fetchedGoals);
 
-        // Initialize responses to false (not done)
-        const initialResponses: Record<string, boolean> = {};
-        fetchedActivities.forEach((a: any) => initialResponses[`activity_${a.id}`] = false);
-        fetchedGoals.forEach((g: any) => initialResponses[`goal_${g.slot}`] = false);
-
-        // Load existing responses if any
-        const { data: existingLog } = await supabase
-            .from('daily_logs')
-            .select('custom_logs, junk_food, processed_sugar, alcohol_excess, daily_points')
-            .eq('user_id', user.id)
-            .eq('date', dateToFetch)
-            .single();
-
-        let loadedSlipups = { junk_food: false, processed_sugar: false, alcohol_excess: false };
-
-        if (existingLog?.custom_logs) {
-            const savedResponses = existingLog.custom_logs as Record<string, boolean>;
-            // Merge saved responses with initialized ones
-            Object.keys(savedResponses).forEach(key => {
-                if (key in initialResponses || key.startsWith('activity_') || key.startsWith('goal_')) {
-                    initialResponses[key] = savedResponses[key] === true;
-                }
-            });
-            loadedSlipups = {
-                junk_food: existingLog.junk_food || false,
-                processed_sugar: existingLog.processed_sugar || false,
-                alcohol_excess: existingLog.alcohol_excess || false
-            };
-            setSlipups(loadedSlipups);
-        }
-
+        // Initialize responses
+        const initialResponses: Record<string, boolean | null> = {};
+        fetchedActivities.forEach((a: any) => initialResponses[`activity_${a.id}`] = null);
+        fetchedGoals.forEach((g: any) => initialResponses[`goal_${g.slot}`] = null);
         setResponses(initialResponses);
 
-        // Recalculate points from loaded responses (don't trust stored daily_points)
-        let recalculatedPoints = 0;
-        fetchedActivities.forEach((a: any) => {
-            if (initialResponses[`activity_${a.id}`] === true) {
-                recalculatedPoints += Math.max(0, a.points || 0);
-            }
-        });
-        fetchedGoals.forEach((g: any) => {
-            if (initialResponses[`goal_${g.slot}`] === true) {
-                recalculatedPoints += Math.max(0, g.goal_templates.points || 0);
-            }
-        });
-        if (loadedSlipups.junk_food) recalculatedPoints -= 5;
-        if (loadedSlipups.processed_sugar) recalculatedPoints -= 5;
-        if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
-        setCurrentPoints(recalculatedPoints);
-
-        // If recalculated points differ from stored, update the database
-        const storedPoints = existingLog?.daily_points || 0;
-        if (existingLog && recalculatedPoints !== storedPoints) {
-            console.log(`Fixing stored points: ${storedPoints} -> ${recalculatedPoints}`);
-            await supabase
+        // Check if already submitted for this date
+        if (context.already_submitted) {
+            setAlreadySubmitted(true);
+            // Fetch existing responses for display
+            const { data: existingLog } = await supabase
                 .from('daily_logs')
-                .update({ daily_points: recalculatedPoints })
+                .select('custom_logs, junk_food, processed_sugar, alcohol_excess')
                 .eq('user_id', user.id)
-                .eq('date', dateToFetch);
+                .eq('date', dateToFetch)
+                .single();
+            if (existingLog?.custom_logs) {
+                setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+                setSlipups({
+                    junk_food: existingLog.junk_food || false,
+                    processed_sugar: existingLog.processed_sugar || false,
+                    alcohol_excess: existingLog.alcohol_excess || false
+                });
+            }
         }
 
         setLoading(false);
     }, [router]);
 
     // Legacy fallback for when RPC doesn't exist yet
-    const fetchDataLegacy = async (fetchUserId: string, dateToFetch: string) => {
+    const fetchDataLegacy = async (userId: string, today: string) => {
         const { data: membership } = await supabase
             .from('group_members')
             .select('group_id')
-            .eq('user_id', fetchUserId)
+            .eq('user_id', userId)
             .eq('status', 'approved')
             .single();
 
@@ -219,83 +156,38 @@ export default function CheckInPage() {
             .eq('enabled', true)
             .order('display_order');
 
-        const initialResponses: Record<string, boolean> = {};
-
         if (squadActivities) {
             setActivities(squadActivities);
-            squadActivities.forEach(a => initialResponses[`activity_${a.id}`] = false);
+            const initialResponses: Record<string, boolean | null> = {};
+            squadActivities.forEach(a => initialResponses[`activity_${a.id}`] = null);
+            setResponses(initialResponses);
         }
 
         const { data: userGoals } = await supabase
             .from('user_goal_assignments')
             .select(`slot, goal_templates (id, name, description, points)`)
-            .eq('user_id', fetchUserId)
+            .eq('user_id', userId)
             .order('slot');
 
         if (userGoals) {
             setAssignedGoals(userGoals as any);
             userGoals.forEach((g: any) => {
-                initialResponses[`goal_${g.slot}`] = false;
+                setResponses(prev => ({ ...prev, [`goal_${g.slot}`]: null }));
             });
         }
 
-        // Load existing log
         const { data: existingLog } = await supabase
             .from('daily_logs')
-            .select('custom_logs, junk_food, processed_sugar, alcohol_excess, daily_points')
-            .eq('user_id', fetchUserId)
-            .eq('date', dateToFetch)
+            .select('*')
+            .eq('user_id', userId)
+            .eq('date', today)
             .single();
 
-        let loadedSlipups = { junk_food: false, processed_sugar: false, alcohol_excess: false };
-
-        if (existingLog?.custom_logs) {
-            const savedResponses = existingLog.custom_logs as Record<string, boolean>;
-            Object.keys(savedResponses).forEach(key => {
-                if (key in initialResponses) {
-                    initialResponses[key] = savedResponses[key] === true;
-                }
-            });
-            loadedSlipups = {
-                junk_food: existingLog.junk_food || false,
-                processed_sugar: existingLog.processed_sugar || false,
-                alcohol_excess: existingLog.alcohol_excess || false
-            };
-            setSlipups(loadedSlipups);
-        }
-
-        setResponses(initialResponses);
-
-        // Recalculate points from loaded responses
-        let recalculatedPoints = 0;
-        if (squadActivities) {
-            squadActivities.forEach(a => {
-                if (initialResponses[`activity_${a.id}`] === true) {
-                    recalculatedPoints += Math.max(0, a.points || 0);
-                }
-            });
-        }
-        if (userGoals) {
-            userGoals.forEach((g: any) => {
-                if (initialResponses[`goal_${g.slot}`] === true) {
-                    recalculatedPoints += Math.max(0, g.goal_templates?.points || 0);
-                }
-            });
-        }
-        if (loadedSlipups.junk_food) recalculatedPoints -= 5;
-        if (loadedSlipups.processed_sugar) recalculatedPoints -= 5;
-        if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
-        setCurrentPoints(recalculatedPoints);
-
-        // If recalculated points differ from stored, update the database
-        const storedPoints = existingLog?.daily_points || 0;
-        if (existingLog && recalculatedPoints !== storedPoints) {
-            console.log(`Fixing stored points: ${storedPoints} -> ${recalculatedPoints}`);
-            await supabase
-                .from('daily_logs')
-                .update({ daily_points: recalculatedPoints })
-                .eq('user_id', fetchUserId)
-                .eq('date', dateToFetch);
+        if (existingLog) {
+            setAlreadySubmitted(true);
+            if (existingLog.custom_logs) {
+                setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+            }
         }
 
         setLoading(false);
@@ -308,85 +200,106 @@ export default function CheckInPage() {
         }
     }, [selectedDate, fetchDataForDate]);
 
-    // Save to database immediately when toggling an activity
-    const saveActivityToggle = async (key: string, newValue: boolean) => {
-        if (!userId) return;
-        if (savingItem) return; // Prevent concurrent saves
+    const handleToggle = (key: string, value: boolean) => {
+        setResponses(prev => ({
+            ...prev,
+            [key]: value
+        }));
+    };
 
-        setSavingItem(key);
+    const handleSubmit = async () => {
+        // Prevent duplicate submissions
+        if (submitting) return;
 
-        // Update local state immediately for responsiveness
-        const newResponses = { ...responses, [key]: newValue };
-        setResponses(newResponses);
-
-        // Calculate new points
-        const newPoints = calculatePoints(newResponses, slipups);
-        setCurrentPoints(newPoints);
+        setSubmitting(true);
 
         try {
-            // Upsert to database with explicit conflict resolution
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                throw new Error('Not authenticated');
+            }
+
+            // Use selectedDate for backdated check-ins
+
+            // Calculate total points with validation
+            let totalPoints = 0;
+
+            // Points from activities (with validation)
+            activities.forEach(activity => {
+                if (responses[`activity_${activity.id}`] === true) {
+                    // Use actual configured points
+                    const points = Math.max(0, activity.points || 0);
+                    totalPoints += points;
+                }
+            });
+
+            // Points from goals (with validation)
+            assignedGoals.forEach(goal => {
+                if (responses[`goal_${goal.slot}`] === true) {
+                    // Use actual configured points
+                    const points = Math.max(0, goal.goal_templates.points || 0);
+                    totalPoints += points;
+                }
+            });
+
+            // Calculate negative points with bounds checking (max -15 for 3 slip-ups)
+            let negativePoints = 0;
+            if (slipups.junk_food) negativePoints -= 5;
+            if (slipups.processed_sugar) negativePoints -= 5;
+            if (slipups.alcohol_excess) negativePoints -= 5;
+
+            // Ensure negative points are within valid range
+            negativePoints = Math.max(-15, Math.min(0, negativePoints));
+            totalPoints += negativePoints;
+
+            // Insert/update daily log with validation
             const { error } = await supabase
                 .from('daily_logs')
                 .upsert({
-                    user_id: userId,
+                    user_id: user.id,
                     date: selectedDate,
-                    daily_points: newPoints,
-                    custom_logs: newResponses,
-                    junk_food: slipups.junk_food,
-                    processed_sugar: slipups.processed_sugar,
-                    alcohol_excess: slipups.alcohol_excess,
-                    negative_points: (slipups.junk_food ? -5 : 0) + (slipups.processed_sugar ? -5 : 0) + (slipups.alcohol_excess ? -5 : 0)
-                }, { onConflict: 'user_id,date' });
+                    daily_points: totalPoints,
+                    custom_logs: responses,
+                    junk_food: Boolean(slipups.junk_food),
+                    processed_sugar: Boolean(slipups.processed_sugar),
+                    alcohol_excess: Boolean(slipups.alcohol_excess),
+                    negative_points: negativePoints
+                });
 
-            if (error) throw error;
-        } catch (err) {
-            console.error('Failed to save:', err);
-            // Revert on error using the captured old values
-            const oldResponses = { ...newResponses, [key]: !newValue };
-            setResponses(oldResponses);
-            setCurrentPoints(calculatePoints(oldResponses, slipups));
+            if (error) {
+                throw new Error(`Failed to submit check-in: ${error.message}`);
+            }
+
+            // NOTE: total_points is now auto-calculated by database trigger
+            // No need for manual recalculation - prevents race conditions
+
+            // Log audit event
+            try {
+                await logCheckIn(user.id, selectedDate, totalPoints);
+            } catch (auditError) {
+                // Non-blocking - audit log failure shouldn't stop submission
+                console.warn('Audit log failed:', auditError);
+            }
+
+            // Trigger celebration!
+            setEarnedPoints(totalPoints);
+            setShowConfetti(true);
+            setAlreadySubmitted(true);
+
+        } catch (error: any) {
+            console.error('Check-in submission error:', error);
+            alert(`Failed to submit check-in: ${error.message || 'Unknown error'}. Please try again.`);
         } finally {
-            setSavingItem(null);
+            setSubmitting(false);
         }
     };
 
-    // Save slipup toggle
-    const saveSlipupToggle = async (slipupKey: keyof typeof slipups) => {
-        if (!userId) return;
-        if (savingItem) return; // Prevent concurrent saves
-
-        setSavingItem(slipupKey);
-
-        const newSlipups = { ...slipups, [slipupKey]: !slipups[slipupKey] };
-        setSlipups(newSlipups);
-
-        const newPoints = calculatePoints(responses, newSlipups);
-        setCurrentPoints(newPoints);
-
-        try {
-            const { error } = await supabase
-                .from('daily_logs')
-                .upsert({
-                    user_id: userId,
-                    date: selectedDate,
-                    daily_points: newPoints,
-                    custom_logs: responses,
-                    junk_food: newSlipups.junk_food,
-                    processed_sugar: newSlipups.processed_sugar,
-                    alcohol_excess: newSlipups.alcohol_excess,
-                    negative_points: (newSlipups.junk_food ? -5 : 0) + (newSlipups.processed_sugar ? -5 : 0) + (newSlipups.alcohol_excess ? -5 : 0)
-                }, { onConflict: 'user_id,date' });
-
-            if (error) throw error;
-        } catch (err) {
-            console.error('Failed to save slipup:', err);
-            // Revert using calculated old value
-            const oldSlipups = { ...newSlipups, [slipupKey]: !newSlipups[slipupKey] };
-            setSlipups(oldSlipups);
-            setCurrentPoints(calculatePoints(responses, oldSlipups));
-        } finally {
-            setSavingItem(null);
-        }
+    const allAnswered = () => {
+        const allKeys = [
+            ...activities.map(a => `activity_${a.id}`),
+            ...assignedGoals.map(g => `goal_${g.slot}`)
+        ];
+        return allKeys.every(key => responses[key] !== null);
     };
 
     if (loading) {
@@ -432,9 +345,9 @@ export default function CheckInPage() {
                         Daily <span className="text-[#FF5E00]">Check-In</span>
                     </h1>
                     <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mt-1">
-                        {availableDates.find(d => d.date === selectedDate)?.dayName === 'Today'
-                            ? 'Track your daily progress'
-                            : `Logging for ${availableDates.find(d => d.date === selectedDate)?.label || selectedDate}`
+                        {alreadySubmitted
+                            ? `Already checked in for ${availableDates.find(d => d.date === selectedDate)?.label || selectedDate}!`
+                            : 'Track your daily progress'
                         }
                     </p>
                 </div>
@@ -471,83 +384,66 @@ export default function CheckInPage() {
                     );
                 })}
             </div>
-
-            {/* Live Points Display */}
-            <div className="premium-card rounded-2xl p-6 bg-gradient-to-br from-[#FF5E00]/10 to-orange-500/5 border-[#FF5E00]/20">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-black uppercase text-zinc-500 dark:text-zinc-400">Today's Points</p>
-                        <p className="text-3xl font-black text-[#FF5E00]">{currentPoints}</p>
-                    </div>
-                    <div className="h-14 w-14 bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
-                        <Sparkles className="h-7 w-7 text-white" />
-                    </div>
-                </div>
-            </div>
-
             {/* Activities Section */}
             {activities.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-4 animate-stagger">
                     <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                         <Activity className="h-6 w-6 text-[#FF5E00]" />
                         Daily Tasks
                     </h2>
-                    {activities.map((activity) => {
-                        const key = `activity_${activity.id}`;
-                        const isDone = responses[key] === true;
-                        const isSaving = savingItem === key;
-                        return (
-                            <button
-                                key={activity.id}
-                                onClick={() => saveActivityToggle(key, !isDone)}
-                                disabled={isSaving}
-                                className={cn(
-                                    "w-full premium-card rounded-xl p-4 flex items-center justify-between transition-all press-effect",
-                                    isDone && "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
-                                )}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                        isDone
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
-                                    )}>
-                                        {isSaving ? (
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        ) : (
-                                            <Check className="h-5 w-5" />
-                                        )}
-                                    </div>
-                                    <div className="text-left">
-                                        <h3 className={cn(
-                                            "font-black text-base",
-                                            isDone ? "text-emerald-700 dark:text-emerald-300" : "text-zinc-900 dark:text-zinc-100"
-                                        )}>
-                                            {activity.activity_name}
-                                        </h3>
-                                        <p className="text-xs text-[#FF5E00] font-bold">
-                                            +{activity.points} pts
-                                        </p>
-                                    </div>
+                    {activities.map((activity) => (
+                        <div
+                            key={activity.id}
+                            className="premium-card rounded-2xl p-6"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
+                                        {activity.activity_name}
+                                    </h3>
+                                    <p className="text-sm text-[#FF5E00] font-bold">
+                                        {activity.points} points
+                                    </p>
                                 </div>
-                                <div className={cn(
-                                    "text-xs font-black uppercase px-3 py-1 rounded-full",
-                                    isDone
-                                        ? "bg-emerald-500 text-white"
-                                        : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
-                                )}>
-                                    {isDone ? "Done ✓" : "Tap to mark done"}
-                                </div>
-                            </button>
-                        );
-                    })}
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleToggle(`activity_${activity.id}`, true)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                        responses[`activity_${activity.id}`] === true
+                                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <Check className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">Yes</span>
+                                </button>
+                                <button
+                                    onClick={() => handleToggle(`activity_${activity.id}`, false)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                        responses[`activity_${activity.id}`] === false
+                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <X className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">No</span>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
             {/* Goals Section */}
             {assignedGoals.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-4 animate-stagger">
                     <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                         <Target className="h-6 w-6 text-[#FF5E00]" />
                         Your Goals
@@ -555,189 +451,208 @@ export default function CheckInPage() {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium -mt-2">
                         Set by admin
                     </p>
-                    {assignedGoals.map((goal) => {
-                        const key = `goal_${goal.slot}`;
-                        const isDone = responses[key] === true;
-                        const isSaving = savingItem === key;
-                        return (
+                    {assignedGoals.map((goal) => (
+                        <div
+                            key={goal.slot}
+                            className="premium-card rounded-2xl p-6"
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
+                                        {goal.goal_templates.name}
+                                    </h3>
+                                    {goal.goal_templates.description && (
+                                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                                            {goal.goal_templates.description}
+                                        </p>
+                                    )}
+                                    <p className="text-sm text-[#FF5E00] font-bold mt-1">
+                                        {goal.goal_templates.points} points
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleToggle(`goal_${goal.slot}`, true)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                        responses[`goal_${goal.slot}`] === true
+                                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <Check className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">Yes</span>
+                                </button>
+                                <button
+                                    onClick={() => handleToggle(`goal_${goal.slot}`, false)}
+                                    disabled={alreadySubmitted}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                        responses[`goal_${goal.slot}`] === false
+                                            ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
+                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                    )}
+                                >
+                                    <X className="h-5 w-5 mx-auto" />
+                                    <span className="block mt-1 text-[10px]">No</span>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Slip-ups Section (Negative Points) */}
+            {!alreadySubmitted && (
+                <div className="space-y-4 animate-stagger">
+                    <button
+                        onClick={() => setShowSlipups(!showSlipups)}
+                        className="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all"
+                    >
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            <span className="font-black text-sm uppercase text-amber-700 dark:text-amber-300">
+                                Log Slip-ups (Optional)
+                            </span>
+                            {(slipups.junk_food || slipups.processed_sugar || slipups.alcohol_excess) && (
+                                <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
+                                    {[slipups.junk_food, slipups.processed_sugar, slipups.alcohol_excess].filter(Boolean).length} logged
+                                </span>
+                            )}
+                        </div>
+                        {showSlipups ? (
+                            <ChevronUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        ) : (
+                            <ChevronDown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        )}
+                    </button>
+
+                    {showSlipups && (
+                        <div className="space-y-3 animate-fade-in">
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium px-2">
+                                Be honest! Logging slip-ups helps you stay accountable. Each checked item = −5 points.
+                            </p>
+
+                            {/* Junk Food */}
                             <button
-                                key={goal.slot}
-                                onClick={() => saveActivityToggle(key, !isDone)}
-                                disabled={isSaving}
+                                onClick={() => setSlipups(prev => ({ ...prev, junk_food: !prev.junk_food }))}
                                 className={cn(
-                                    "w-full premium-card rounded-xl p-4 flex items-center justify-between transition-all press-effect",
-                                    isDone && "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                    slipups.junk_food
+                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
                                 )}
                             >
                                 <div className="flex items-center gap-4">
                                     <div className={cn(
                                         "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                        isDone
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"
+                                        slipups.junk_food
+                                            ? "bg-red-500 text-white"
+                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
                                     )}>
-                                        {isSaving ? (
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        ) : (
-                                            <Check className="h-5 w-5" />
-                                        )}
+                                        {slipups.junk_food ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
                                     </div>
                                     <div className="text-left">
-                                        <h3 className={cn(
-                                            "font-black text-base",
-                                            isDone ? "text-emerald-700 dark:text-emerald-300" : "text-zinc-900 dark:text-zinc-100"
-                                        )}>
-                                            {goal.goal_templates.name}
-                                        </h3>
-                                        {goal.goal_templates.description && (
-                                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                                {goal.goal_templates.description}
-                                            </p>
-                                        )}
-                                        <p className="text-xs text-[#FF5E00] font-bold">
-                                            +{goal.goal_templates.points} pts
-                                        </p>
+                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Junk/Fried Food</h4>
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Deep-fried, fast food, heavily oily snacks</p>
                                     </div>
                                 </div>
-                                <div className={cn(
-                                    "text-xs font-black uppercase px-3 py-1 rounded-full",
-                                    isDone
-                                        ? "bg-emerald-500 text-white"
-                                        : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
-                                )}>
-                                    {isDone ? "Done ✓" : "Tap"}
-                                </div>
+                                <span className={cn(
+                                    "font-black text-lg",
+                                    slipups.junk_food ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                                )}>−5</span>
                             </button>
-                        );
-                    })}
+
+                            {/* Processed Sugar */}
+                            <button
+                                onClick={() => setSlipups(prev => ({ ...prev, processed_sugar: !prev.processed_sugar }))}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                    slipups.processed_sugar
+                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={cn(
+                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
+                                        slipups.processed_sugar
+                                            ? "bg-red-500 text-white"
+                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
+                                    )}>
+                                        {slipups.processed_sugar ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                    </div>
+                                    <div className="text-left">
+                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Processed Sugar</h4>
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Sweets, desserts, sugary drinks, packaged snacks</p>
+                                    </div>
+                                </div>
+                                <span className={cn(
+                                    "font-black text-lg",
+                                    slipups.processed_sugar ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                                )}>−5</span>
+                            </button>
+
+                            {/* Alcohol Excess */}
+                            <button
+                                onClick={() => setSlipups(prev => ({ ...prev, alcohol_excess: !prev.alcohol_excess }))}
+                                className={cn(
+                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                    slipups.alcohol_excess
+                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={cn(
+                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
+                                        slipups.alcohol_excess
+                                            ? "bg-red-500 text-white"
+                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
+                                    )}>
+                                        {slipups.alcohol_excess ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                    </div>
+                                    <div className="text-left">
+                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Alcohol Excess</h4>
+                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">More than 2 drinks in one session</p>
+                                    </div>
+                                </div>
+                                <span className={cn(
+                                    "font-black text-lg",
+                                    slipups.alcohol_excess ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                                )}>−5</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Slip-ups Section (Negative Points) */}
-            <div className="space-y-4">
-                <button
-                    onClick={() => setShowSlipups(!showSlipups)}
-                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all"
-                >
-                    <div className="flex items-center gap-3">
-                        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                        <span className="font-black text-sm uppercase text-amber-700 dark:text-amber-300">
-                            Log Slip-ups (Optional)
-                        </span>
-                        {(slipups.junk_food || slipups.processed_sugar || slipups.alcohol_excess) && (
-                            <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
-                                {[slipups.junk_food, slipups.processed_sugar, slipups.alcohol_excess].filter(Boolean).length} logged
-                            </span>
+            {/* Submit Button */}
+            {!alreadySubmitted && (
+                <>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !allAnswered()}
+                        className="w-full bg-[#FF5E00] text-white font-black py-4 rounded-xl text-sm uppercase hover:bg-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {submitting ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                            'Submit'
                         )}
-                    </div>
-                    {showSlipups ? (
-                        <ChevronUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                    ) : (
-                        <ChevronDown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                    )}
-                </button>
+                    </button>
 
-                {showSlipups && (
-                    <div className="space-y-3 animate-fade-in">
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium px-2">
-                            Be honest! Logging slip-ups helps you stay accountable. Each checked item = −5 points.
+                    {!allAnswered() && (
+                        <p className="text-center text-sm text-zinc-400 font-medium">
+                            Answer all items to submit
                         </p>
-
-                        {/* Junk Food */}
-                        <button
-                            onClick={() => saveSlipupToggle('junk_food')}
-                            disabled={savingItem === 'junk_food'}
-                            className={cn(
-                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                slipups.junk_food
-                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                            )}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                    slipups.junk_food
-                                        ? "bg-red-500 text-white"
-                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                )}>
-                                    {slipups.junk_food ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                </div>
-                                <div className="text-left">
-                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Junk/Fried Food</h4>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Deep-fried, fast food, heavily oily snacks</p>
-                                </div>
-                            </div>
-                            <span className={cn(
-                                "font-black text-lg",
-                                slipups.junk_food ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                            )}>−5</span>
-                        </button>
-
-                        {/* Processed Sugar */}
-                        <button
-                            onClick={() => saveSlipupToggle('processed_sugar')}
-                            disabled={savingItem === 'processed_sugar'}
-                            className={cn(
-                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                slipups.processed_sugar
-                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                            )}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                    slipups.processed_sugar
-                                        ? "bg-red-500 text-white"
-                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                )}>
-                                    {savingItem === 'processed_sugar' ? <Loader2 className="h-5 w-5 animate-spin" /> : slipups.processed_sugar ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                </div>
-                                <div className="text-left">
-                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Processed Sugar</h4>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Sweets, desserts, sugary drinks, packaged snacks</p>
-                                </div>
-                            </div>
-                            <span className={cn(
-                                "font-black text-lg",
-                                slipups.processed_sugar ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                            )}>−5</span>
-                        </button>
-
-                        {/* Alcohol Excess */}
-                        <button
-                            onClick={() => saveSlipupToggle('alcohol_excess')}
-                            disabled={savingItem === 'alcohol_excess'}
-                            className={cn(
-                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                slipups.alcohol_excess
-                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                            )}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                    slipups.alcohol_excess
-                                        ? "bg-red-500 text-white"
-                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                )}>
-                                    {savingItem === 'alcohol_excess' ? <Loader2 className="h-5 w-5 animate-spin" /> : slipups.alcohol_excess ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                </div>
-                                <div className="text-left">
-                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Alcohol Excess</h4>
-                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">More than 2 drinks in one session</p>
-                                </div>
-                            </div>
-                            <span className={cn(
-                                "font-black text-lg",
-                                slipups.alcohol_excess ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                            )}>−5</span>
-                        </button>
-                    </div>
-                )}
-            </div>
+                    )}
+                </>
+            )}
 
             {/* Empty State */}
             {activities.length === 0 && assignedGoals.length === 0 && (
