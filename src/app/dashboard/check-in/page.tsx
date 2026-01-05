@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getToday, formatDate } from '@/lib/dateUtils';
+import { getToday, formatDate, parseLocalDate } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 import { logCheckIn } from '@/lib/auditLog';
 import Confetti from '@/components/Confetti';
@@ -54,119 +54,151 @@ export default function CheckInPage() {
     });
     const [showSlipups, setShowSlipups] = useState(false);
 
+    // Date selection for backdated check-ins (today, yesterday, 2 days ago)
+    const [selectedDate, setSelectedDate] = useState(getToday());
+    const [availableDates, setAvailableDates] = useState<{ date: string; label: string; dayName: string }[]>([]);
+
+    // Initialize available dates (today, yesterday, 2 days ago)
     useEffect(() => {
-        const fetchData = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return router.push('/auth?mode=login');
+        const today = new Date();
+        const dates = [];
+        for (let i = 0; i < 3; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = formatDate(date, 'iso');
+            const dayName = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : date.toLocaleDateString('en-US', { weekday: 'short' });
+            const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            dates.push({ date: dateStr, label, dayName });
+        }
+        setAvailableDates(dates);
+    }, []);
 
-            const today = getToday();
+    // Fetch data when selectedDate changes
+    const fetchDataForDate = useCallback(async (dateToFetch: string) => {
+        setLoading(true);
+        setAlreadySubmitted(false);
+        setResponses({});
+        setSlipups({ junk_food: false, processed_sugar: false, alcohol_excess: false });
+        setShowSlipups(false);
 
-            // OPTIMIZED: Single RPC call replaces 5 separate queries
-            const { data: context, error } = await supabase.rpc('get_checkin_context', {
-                p_date: today
-            });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return router.push('/auth?mode=login');
 
-            if (error || !context) {
-                // Fallback: RPC not yet created, use legacy queries
-                await fetchDataLegacy(user.id, today);
-                return;
-            }
+        // OPTIMIZED: Single RPC call replaces 5 separate queries
+        const { data: context, error } = await supabase.rpc('get_checkin_context', {
+            p_date: dateToFetch
+        });
 
-            // Set activities from RPC response
-            const fetchedActivities = context.activities || [];
-            setActivities(fetchedActivities);
+        if (error || !context) {
+            // Fallback: RPC not yet created, use legacy queries
+            await fetchDataLegacy(user.id, dateToFetch);
+            return;
+        }
 
-            // Set goals from RPC response
-            const fetchedGoals = (context.goals || []).map((g: any) => ({
-                slot: g.slot,
-                goal_templates: g.goal_templates
-            }));
-            setAssignedGoals(fetchedGoals);
+        // Set activities from RPC response
+        const fetchedActivities = context.activities || [];
+        setActivities(fetchedActivities);
 
-            // Initialize responses
-            const initialResponses: Record<string, boolean | null> = {};
-            fetchedActivities.forEach((a: any) => initialResponses[`activity_${a.id}`] = null);
-            fetchedGoals.forEach((g: any) => initialResponses[`goal_${g.slot}`] = null);
-            setResponses(initialResponses);
+        // Set goals from RPC response
+        const fetchedGoals = (context.goals || []).map((g: any) => ({
+            slot: g.slot,
+            goal_templates: g.goal_templates
+        }));
+        setAssignedGoals(fetchedGoals);
 
-            // Check if already submitted
-            if (context.already_submitted) {
-                setAlreadySubmitted(true);
-                // Fetch existing responses for display
-                const { data: existingLog } = await supabase
-                    .from('daily_logs')
-                    .select('custom_logs')
-                    .eq('user_id', user.id)
-                    .eq('date', today)
-                    .single();
-                if (existingLog?.custom_logs) {
-                    setResponses(existingLog.custom_logs as Record<string, boolean | null>);
-                }
-            }
+        // Initialize responses
+        const initialResponses: Record<string, boolean | null> = {};
+        fetchedActivities.forEach((a: any) => initialResponses[`activity_${a.id}`] = null);
+        fetchedGoals.forEach((g: any) => initialResponses[`goal_${g.slot}`] = null);
+        setResponses(initialResponses);
 
-            setLoading(false);
-        };
-
-        // Legacy fallback for when RPC doesn't exist yet
-        const fetchDataLegacy = async (userId: string, today: string) => {
-            const { data: membership } = await supabase
-                .from('group_members')
-                .select('group_id')
-                .eq('user_id', userId)
-                .eq('status', 'approved')
-                .single();
-
-            if (!membership) {
-                setLoading(false);
-                return;
-            }
-
-            const { data: squadActivities } = await supabase
-                .from('squad_checkin_activities')
-                .select('*')
-                .eq('squad_id', membership.group_id)
-                .eq('enabled', true)
-                .order('display_order');
-
-            if (squadActivities) {
-                setActivities(squadActivities);
-                const initialResponses: Record<string, boolean | null> = {};
-                squadActivities.forEach(a => initialResponses[`activity_${a.id}`] = null);
-                setResponses(initialResponses);
-            }
-
-            const { data: userGoals } = await supabase
-                .from('user_goal_assignments')
-                .select(`slot, goal_templates (id, name, description, points)`)
-                .eq('user_id', userId)
-                .order('slot');
-
-            if (userGoals) {
-                setAssignedGoals(userGoals as any);
-                userGoals.forEach((g: any) => {
-                    setResponses(prev => ({ ...prev, [`goal_${g.slot}`]: null }));
-                });
-            }
-
+        // Check if already submitted for this date
+        if (context.already_submitted) {
+            setAlreadySubmitted(true);
+            // Fetch existing responses for display
             const { data: existingLog } = await supabase
                 .from('daily_logs')
-                .select('*')
-                .eq('user_id', userId)
-                .eq('date', today)
+                .select('custom_logs, junk_food, processed_sugar, alcohol_excess')
+                .eq('user_id', user.id)
+                .eq('date', dateToFetch)
                 .single();
-
-            if (existingLog) {
-                setAlreadySubmitted(true);
-                if (existingLog.custom_logs) {
-                    setResponses(existingLog.custom_logs as Record<string, boolean | null>);
-                }
+            if (existingLog?.custom_logs) {
+                setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+                setSlipups({
+                    junk_food: existingLog.junk_food || false,
+                    processed_sugar: existingLog.processed_sugar || false,
+                    alcohol_excess: existingLog.alcohol_excess || false
+                });
             }
+        }
 
-            setLoading(false);
-        };
-
-        fetchData();
+        setLoading(false);
     }, [router]);
+
+    // Legacy fallback for when RPC doesn't exist yet
+    const fetchDataLegacy = async (userId: string, today: string) => {
+        const { data: membership } = await supabase
+            .from('group_members')
+            .select('group_id')
+            .eq('user_id', userId)
+            .eq('status', 'approved')
+            .single();
+
+        if (!membership) {
+            setLoading(false);
+            return;
+        }
+
+        const { data: squadActivities } = await supabase
+            .from('squad_checkin_activities')
+            .select('*')
+            .eq('squad_id', membership.group_id)
+            .eq('enabled', true)
+            .order('display_order');
+
+        if (squadActivities) {
+            setActivities(squadActivities);
+            const initialResponses: Record<string, boolean | null> = {};
+            squadActivities.forEach(a => initialResponses[`activity_${a.id}`] = null);
+            setResponses(initialResponses);
+        }
+
+        const { data: userGoals } = await supabase
+            .from('user_goal_assignments')
+            .select(`slot, goal_templates (id, name, description, points)`)
+            .eq('user_id', userId)
+            .order('slot');
+
+        if (userGoals) {
+            setAssignedGoals(userGoals as any);
+            userGoals.forEach((g: any) => {
+                setResponses(prev => ({ ...prev, [`goal_${g.slot}`]: null }));
+            });
+        }
+
+        const { data: existingLog } = await supabase
+            .from('daily_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('date', today)
+            .single();
+
+        if (existingLog) {
+            setAlreadySubmitted(true);
+            if (existingLog.custom_logs) {
+                setResponses(existingLog.custom_logs as Record<string, boolean | null>);
+            }
+        }
+
+        setLoading(false);
+    };
+
+    // Effect to fetch data when selectedDate changes
+    useEffect(() => {
+        if (selectedDate) {
+            fetchDataForDate(selectedDate);
+        }
+    }, [selectedDate, fetchDataForDate]);
 
     const handleToggle = (key: string, value: boolean) => {
         setResponses(prev => ({
@@ -187,7 +219,7 @@ export default function CheckInPage() {
                 throw new Error('Not authenticated');
             }
 
-            const today = getToday();
+            // Use selectedDate for backdated check-ins
 
             // Calculate total points with validation
             let totalPoints = 0;
@@ -225,7 +257,7 @@ export default function CheckInPage() {
                 .from('daily_logs')
                 .upsert({
                     user_id: user.id,
-                    date: today,
+                    date: selectedDate,
                     daily_points: totalPoints,
                     custom_logs: responses,
                     junk_food: Boolean(slipups.junk_food),
@@ -243,7 +275,7 @@ export default function CheckInPage() {
 
             // Log audit event
             try {
-                await logCheckIn(user.id, today, totalPoints);
+                await logCheckIn(user.id, selectedDate, totalPoints);
             } catch (auditError) {
                 // Non-blocking - audit log failure shouldn't stop submission
                 console.warn('Audit log failed:', auditError);
@@ -314,7 +346,7 @@ export default function CheckInPage() {
                     </h1>
                     <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm mt-1">
                         {alreadySubmitted
-                            ? `Already checked in for ${formatDate(new Date(), 'short')}!`
+                            ? `Already checked in for ${availableDates.find(d => d.date === selectedDate)?.label || selectedDate}!`
                             : 'Track your daily progress'
                         }
                     </p>
@@ -322,6 +354,36 @@ export default function CheckInPage() {
                 <DateDisplay />
             </div>
 
+            {/* Date Selector Tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+                {availableDates.map((dateOption) => {
+                    const isSelected = selectedDate === dateOption.date;
+                    return (
+                        <button
+                            key={dateOption.date}
+                            onClick={() => setSelectedDate(dateOption.date)}
+                            className={cn(
+                                "flex-shrink-0 px-4 py-3 rounded-xl font-bold text-sm transition-all press-effect border-2",
+                                isSelected
+                                    ? "bg-[#FF5E00] text-white border-[#FF5E00] shadow-lg shadow-orange-500/30"
+                                    : "bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                            )}
+                        >
+                            <div className="text-center">
+                                <div className={cn(
+                                    "text-xs uppercase font-black",
+                                    isSelected ? "text-white/80" : "text-zinc-400 dark:text-zinc-500"
+                                )}>
+                                    {dateOption.dayName}
+                                </div>
+                                <div className="mt-0.5">
+                                    {dateOption.label}
+                                </div>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
             {/* Activities Section */}
             {activities.length > 0 && (
                 <div className="space-y-4 animate-stagger">
