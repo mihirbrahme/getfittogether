@@ -22,7 +22,8 @@ const defaultContext: ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType>(defaultContext);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-    const [theme, setThemeState] = useState<Theme>('system');
+    // Default to 'light' instead of 'system' so light mode is default for everyone
+    const [theme, setThemeState] = useState<Theme>('light');
     const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
     const [mounted, setMounted] = useState(false);
 

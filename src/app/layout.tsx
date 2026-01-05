@@ -62,14 +62,14 @@ export const metadata: Metadata = {
   viewport: "width=device-width, initial-scale=1, maximum-scale=5",
 };
 
-// Script to prevent flash of wrong theme
+// Script to prevent flash of wrong theme - only apply dark if explicitly set
 const themeScript = `
   (function() {
     try {
       var theme = localStorage.getItem('theme');
+      // Only apply dark mode if user explicitly chose 'dark' or 'system' with dark preference
       var isDark = theme === 'dark' || 
-        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
-        (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (isDark) {
         document.documentElement.classList.add('dark');
       }
