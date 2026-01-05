@@ -184,6 +184,17 @@ export default function CheckInPage() {
         if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
         setCurrentPoints(recalculatedPoints);
 
+        // If recalculated points differ from stored, update the database
+        const storedPoints = existingLog?.daily_points || 0;
+        if (existingLog && recalculatedPoints !== storedPoints) {
+            console.log(`Fixing stored points: ${storedPoints} -> ${recalculatedPoints}`);
+            await supabase
+                .from('daily_logs')
+                .update({ daily_points: recalculatedPoints })
+                .eq('user_id', user.id)
+                .eq('date', dateToFetch);
+        }
+
         setLoading(false);
     }, [router]);
 
@@ -275,6 +286,17 @@ export default function CheckInPage() {
         if (loadedSlipups.processed_sugar) recalculatedPoints -= 5;
         if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
         setCurrentPoints(recalculatedPoints);
+
+        // If recalculated points differ from stored, update the database
+        const storedPoints = existingLog?.daily_points || 0;
+        if (existingLog && recalculatedPoints !== storedPoints) {
+            console.log(`Fixing stored points: ${storedPoints} -> ${recalculatedPoints}`);
+            await supabase
+                .from('daily_logs')
+                .update({ daily_points: recalculatedPoints })
+                .eq('user_id', fetchUserId)
+                .eq('date', dateToFetch);
+        }
 
         setLoading(false);
     };
