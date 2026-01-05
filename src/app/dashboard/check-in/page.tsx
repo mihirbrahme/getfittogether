@@ -147,6 +147,8 @@ export default function CheckInPage() {
             .eq('date', dateToFetch)
             .single();
 
+        let loadedSlipups = { junk_food: false, processed_sugar: false, alcohol_excess: false };
+
         if (existingLog?.custom_logs) {
             const savedResponses = existingLog.custom_logs as Record<string, boolean>;
             // Merge saved responses with initialized ones
@@ -155,16 +157,33 @@ export default function CheckInPage() {
                     initialResponses[key] = savedResponses[key] === true;
                 }
             });
-            const loadedSlipups = {
+            loadedSlipups = {
                 junk_food: existingLog.junk_food || false,
                 processed_sugar: existingLog.processed_sugar || false,
                 alcohol_excess: existingLog.alcohol_excess || false
             };
             setSlipups(loadedSlipups);
-            setCurrentPoints(existingLog.daily_points || 0);
         }
 
         setResponses(initialResponses);
+
+        // Recalculate points from loaded responses (don't trust stored daily_points)
+        let recalculatedPoints = 0;
+        fetchedActivities.forEach((a: any) => {
+            if (initialResponses[`activity_${a.id}`] === true) {
+                recalculatedPoints += Math.max(0, a.points || 0);
+            }
+        });
+        fetchedGoals.forEach((g: any) => {
+            if (initialResponses[`goal_${g.slot}`] === true) {
+                recalculatedPoints += Math.max(0, g.goal_templates.points || 0);
+            }
+        });
+        if (loadedSlipups.junk_food) recalculatedPoints -= 5;
+        if (loadedSlipups.processed_sugar) recalculatedPoints -= 5;
+        if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
+        setCurrentPoints(recalculatedPoints);
+
         setLoading(false);
     }, [router]);
 
@@ -217,6 +236,8 @@ export default function CheckInPage() {
             .eq('date', dateToFetch)
             .single();
 
+        let loadedSlipups = { junk_food: false, processed_sugar: false, alcohol_excess: false };
+
         if (existingLog?.custom_logs) {
             const savedResponses = existingLog.custom_logs as Record<string, boolean>;
             Object.keys(savedResponses).forEach(key => {
@@ -224,15 +245,37 @@ export default function CheckInPage() {
                     initialResponses[key] = savedResponses[key] === true;
                 }
             });
-            setSlipups({
+            loadedSlipups = {
                 junk_food: existingLog.junk_food || false,
                 processed_sugar: existingLog.processed_sugar || false,
                 alcohol_excess: existingLog.alcohol_excess || false
-            });
-            setCurrentPoints(existingLog.daily_points || 0);
+            };
+            setSlipups(loadedSlipups);
         }
 
         setResponses(initialResponses);
+
+        // Recalculate points from loaded responses
+        let recalculatedPoints = 0;
+        if (squadActivities) {
+            squadActivities.forEach(a => {
+                if (initialResponses[`activity_${a.id}`] === true) {
+                    recalculatedPoints += Math.max(0, a.points || 0);
+                }
+            });
+        }
+        if (userGoals) {
+            userGoals.forEach((g: any) => {
+                if (initialResponses[`goal_${g.slot}`] === true) {
+                    recalculatedPoints += Math.max(0, g.goal_templates?.points || 0);
+                }
+            });
+        }
+        if (loadedSlipups.junk_food) recalculatedPoints -= 5;
+        if (loadedSlipups.processed_sugar) recalculatedPoints -= 5;
+        if (loadedSlipups.alcohol_excess) recalculatedPoints -= 5;
+        setCurrentPoints(recalculatedPoints);
+
         setLoading(false);
     };
 
