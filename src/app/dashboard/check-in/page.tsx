@@ -264,7 +264,7 @@ export default function CheckInPage() {
                     processed_sugar: Boolean(slipups.processed_sugar),
                     alcohol_excess: Boolean(slipups.alcohol_excess),
                     negative_points: negativePoints
-                });
+                }, { onConflict: 'user_id,date' });
 
             if (error) {
                 throw new Error(`Failed to submit check-in: ${error.message}`);
