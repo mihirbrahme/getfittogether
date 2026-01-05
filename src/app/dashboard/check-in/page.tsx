@@ -253,7 +253,7 @@ export default function CheckInPage() {
             totalPoints += negativePoints;
 
             // Insert/update daily log with validation
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('daily_logs')
                 .upsert({
                     user_id: user.id,
@@ -264,25 +264,34 @@ export default function CheckInPage() {
                     processed_sugar: Boolean(slipups.processed_sugar),
                     alcohol_excess: Boolean(slipups.alcohol_excess),
                     negative_points: negativePoints
-                }, { onConflict: 'user_id,date' });
+                }, { onConflict: 'user_id,date' })
+                .select()
+                .single();
 
             if (error) {
                 throw new Error(`Failed to submit check-in: ${error.message}`);
             }
 
-            // NOTE: total_points is now auto-calculated by database trigger
-            // No need for manual recalculation - prevents race conditions
+            // Verify if DB overwrote our points
+            if (data && data.daily_points !== totalPoints) {
+                console.warn(`DB Mismatch! Sent ${totalPoints}, got ${data.daily_points}`);
+                alert(`Warning: Database logic modified your points from ${totalPoints} to ${data.daily_points}. Please report this to admin.`);
+                // Update local state to match DB reality so UI doesn't lie
+                // But keep earnedPoints as what we calculated for positive enforcement?
+                // No, tell truth.
+                setEarnedPoints(data.daily_points);
+            } else {
+                setEarnedPoints(totalPoints);
+            }
 
             // Log audit event
             try {
                 await logCheckIn(user.id, selectedDate, totalPoints);
             } catch (auditError) {
-                // Non-blocking - audit log failure shouldn't stop submission
                 console.warn('Audit log failed:', auditError);
             }
 
             // Trigger celebration!
-            setEarnedPoints(totalPoints);
             setShowConfetti(true);
             setAlreadySubmitted(true);
 
