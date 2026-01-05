@@ -244,6 +244,7 @@ export default function CheckInPage() {
     // Save to database immediately when toggling an activity
     const saveActivityToggle = async (key: string, newValue: boolean) => {
         if (!userId) return;
+        if (savingItem) return; // Prevent concurrent saves
 
         setSavingItem(key);
 
@@ -256,7 +257,7 @@ export default function CheckInPage() {
         setCurrentPoints(newPoints);
 
         try {
-            // Upsert to database
+            // Upsert to database with explicit conflict resolution
             const { error } = await supabase
                 .from('daily_logs')
                 .upsert({
@@ -268,14 +269,15 @@ export default function CheckInPage() {
                     processed_sugar: slipups.processed_sugar,
                     alcohol_excess: slipups.alcohol_excess,
                     negative_points: (slipups.junk_food ? -5 : 0) + (slipups.processed_sugar ? -5 : 0) + (slipups.alcohol_excess ? -5 : 0)
-                });
+                }, { onConflict: 'user_id,date' });
 
             if (error) throw error;
         } catch (err) {
             console.error('Failed to save:', err);
-            // Revert on error
-            setResponses(responses);
-            setCurrentPoints(calculatePoints(responses, slipups));
+            // Revert on error using the captured old values
+            const oldResponses = { ...newResponses, [key]: !newValue };
+            setResponses(oldResponses);
+            setCurrentPoints(calculatePoints(oldResponses, slipups));
         } finally {
             setSavingItem(null);
         }
@@ -284,6 +286,7 @@ export default function CheckInPage() {
     // Save slipup toggle
     const saveSlipupToggle = async (slipupKey: keyof typeof slipups) => {
         if (!userId) return;
+        if (savingItem) return; // Prevent concurrent saves
 
         setSavingItem(slipupKey);
 
@@ -305,13 +308,15 @@ export default function CheckInPage() {
                     processed_sugar: newSlipups.processed_sugar,
                     alcohol_excess: newSlipups.alcohol_excess,
                     negative_points: (newSlipups.junk_food ? -5 : 0) + (newSlipups.processed_sugar ? -5 : 0) + (newSlipups.alcohol_excess ? -5 : 0)
-                });
+                }, { onConflict: 'user_id,date' });
 
             if (error) throw error;
         } catch (err) {
             console.error('Failed to save slipup:', err);
-            setSlipups(slipups);
-            setCurrentPoints(calculatePoints(responses, slipups));
+            // Revert using calculated old value
+            const oldSlipups = { ...newSlipups, [slipupKey]: !newSlipups[slipupKey] };
+            setSlipups(oldSlipups);
+            setCurrentPoints(calculatePoints(responses, oldSlipups));
         } finally {
             setSavingItem(null);
         }
