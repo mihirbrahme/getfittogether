@@ -409,13 +409,11 @@ export default function CheckInPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => handleToggle(`activity_${activity.id}`, true)}
-                                    disabled={alreadySubmitted}
                                     className={cn(
                                         "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`activity_${activity.id}`] === true
                                             ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
-                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
-                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
                                     )}
                                 >
                                     <Check className="h-5 w-5 mx-auto" />
@@ -423,13 +421,11 @@ export default function CheckInPage() {
                                 </button>
                                 <button
                                     onClick={() => handleToggle(`activity_${activity.id}`, false)}
-                                    disabled={alreadySubmitted}
                                     className={cn(
                                         "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`activity_${activity.id}`] === false
                                             ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
-                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
-                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
                                     )}
                                 >
                                     <X className="h-5 w-5 mx-auto" />
@@ -474,13 +470,11 @@ export default function CheckInPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => handleToggle(`goal_${goal.slot}`, true)}
-                                    disabled={alreadySubmitted}
                                     className={cn(
                                         "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`goal_${goal.slot}`] === true
                                             ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
-                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
-                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
                                     )}
                                 >
                                     <Check className="h-5 w-5 mx-auto" />
@@ -488,13 +482,11 @@ export default function CheckInPage() {
                                 </button>
                                 <button
                                     onClick={() => handleToggle(`goal_${goal.slot}`, false)}
-                                    disabled={alreadySubmitted}
                                     className={cn(
                                         "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
                                         responses[`goal_${goal.slot}`] === false
                                             ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
-                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700",
-                                        alreadySubmitted && "cursor-not-allowed opacity-70"
+                                            : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
                                     )}
                                 >
                                     <X className="h-5 w-5 mx-auto" />
@@ -507,152 +499,148 @@ export default function CheckInPage() {
             )}
 
             {/* Slip-ups Section (Negative Points) */}
-            {!alreadySubmitted && (
-                <div className="space-y-4 animate-stagger">
-                    <button
-                        onClick={() => setShowSlipups(!showSlipups)}
-                        className="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all"
-                    >
-                        <div className="flex items-center gap-3">
-                            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                            <span className="font-black text-sm uppercase text-amber-700 dark:text-amber-300">
-                                Log Slip-ups (Optional)
+            <div className="space-y-4 animate-stagger">
+                <button
+                    onClick={() => setShowSlipups(!showSlipups)}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all"
+                >
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        <span className="font-black text-sm uppercase text-amber-700 dark:text-amber-300">
+                            Log Slip-ups (Optional)
+                        </span>
+                        {(slipups.junk_food || slipups.processed_sugar || slipups.alcohol_excess) && (
+                            <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
+                                {[slipups.junk_food, slipups.processed_sugar, slipups.alcohol_excess].filter(Boolean).length} logged
                             </span>
-                            {(slipups.junk_food || slipups.processed_sugar || slipups.alcohol_excess) && (
-                                <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full">
-                                    {[slipups.junk_food, slipups.processed_sugar, slipups.alcohol_excess].filter(Boolean).length} logged
-                                </span>
-                            )}
-                        </div>
-                        {showSlipups ? (
-                            <ChevronUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                        ) : (
-                            <ChevronDown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                         )}
-                    </button>
-
-                    {showSlipups && (
-                        <div className="space-y-3 animate-fade-in">
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium px-2">
-                                Be honest! Logging slip-ups helps you stay accountable. Each checked item = −5 points.
-                            </p>
-
-                            {/* Junk Food */}
-                            <button
-                                onClick={() => setSlipups(prev => ({ ...prev, junk_food: !prev.junk_food }))}
-                                className={cn(
-                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                    slipups.junk_food
-                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                                )}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                        slipups.junk_food
-                                            ? "bg-red-500 text-white"
-                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                    )}>
-                                        {slipups.junk_food ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                    </div>
-                                    <div className="text-left">
-                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Junk/Fried Food</h4>
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Deep-fried, fast food, heavily oily snacks</p>
-                                    </div>
-                                </div>
-                                <span className={cn(
-                                    "font-black text-lg",
-                                    slipups.junk_food ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                                )}>−5</span>
-                            </button>
-
-                            {/* Processed Sugar */}
-                            <button
-                                onClick={() => setSlipups(prev => ({ ...prev, processed_sugar: !prev.processed_sugar }))}
-                                className={cn(
-                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                    slipups.processed_sugar
-                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                                )}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                        slipups.processed_sugar
-                                            ? "bg-red-500 text-white"
-                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                    )}>
-                                        {slipups.processed_sugar ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                    </div>
-                                    <div className="text-left">
-                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Processed Sugar</h4>
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Sweets, desserts, sugary drinks, packaged snacks</p>
-                                    </div>
-                                </div>
-                                <span className={cn(
-                                    "font-black text-lg",
-                                    slipups.processed_sugar ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                                )}>−5</span>
-                            </button>
-
-                            {/* Alcohol Excess */}
-                            <button
-                                onClick={() => setSlipups(prev => ({ ...prev, alcohol_excess: !prev.alcohol_excess }))}
-                                className={cn(
-                                    "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
-                                    slipups.alcohol_excess
-                                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-                                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
-                                )}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
-                                        slipups.alcohol_excess
-                                            ? "bg-red-500 text-white"
-                                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
-                                    )}>
-                                        {slipups.alcohol_excess ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
-                                    </div>
-                                    <div className="text-left">
-                                        <h4 className="font-black text-zinc-900 dark:text-zinc-100">Alcohol Excess</h4>
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400">More than 2 drinks in one session</p>
-                                    </div>
-                                </div>
-                                <span className={cn(
-                                    "font-black text-lg",
-                                    slipups.alcohol_excess ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
-                                )}>−5</span>
-                            </button>
-                        </div>
+                    </div>
+                    {showSlipups ? (
+                        <ChevronUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    ) : (
+                        <ChevronDown className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                     )}
-                </div>
-            )}
+                </button>
+
+                {showSlipups && (
+                    <div className="space-y-3 animate-fade-in">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium px-2">
+                            Be honest! Logging slip-ups helps you stay accountable. Each checked item = −5 points.
+                        </p>
+
+                        {/* Junk Food */}
+                        <button
+                            onClick={() => setSlipups(prev => ({ ...prev, junk_food: !prev.junk_food }))}
+                            className={cn(
+                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                slipups.junk_food
+                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                            )}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
+                                    slipups.junk_food
+                                        ? "bg-red-500 text-white"
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
+                                )}>
+                                    {slipups.junk_food ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                </div>
+                                <div className="text-left">
+                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Junk/Fried Food</h4>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Deep-fried, fast food, heavily oily snacks</p>
+                                </div>
+                            </div>
+                            <span className={cn(
+                                "font-black text-lg",
+                                slipups.junk_food ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                            )}>−5</span>
+                        </button>
+
+                        {/* Processed Sugar */}
+                        <button
+                            onClick={() => setSlipups(prev => ({ ...prev, processed_sugar: !prev.processed_sugar }))}
+                            className={cn(
+                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                slipups.processed_sugar
+                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                            )}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
+                                    slipups.processed_sugar
+                                        ? "bg-red-500 text-white"
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
+                                )}>
+                                    {slipups.processed_sugar ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                </div>
+                                <div className="text-left">
+                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Processed Sugar</h4>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Sweets, desserts, sugary drinks, packaged snacks</p>
+                                </div>
+                            </div>
+                            <span className={cn(
+                                "font-black text-lg",
+                                slipups.processed_sugar ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                            )}>−5</span>
+                        </button>
+
+                        {/* Alcohol Excess */}
+                        <button
+                            onClick={() => setSlipups(prev => ({ ...prev, alcohol_excess: !prev.alcohol_excess }))}
+                            className={cn(
+                                "w-full flex items-center justify-between p-5 rounded-2xl border transition-all",
+                                slipups.alcohol_excess
+                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                    : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                            )}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "h-10 w-10 rounded-xl flex items-center justify-center transition-all",
+                                    slipups.alcohol_excess
+                                        ? "bg-red-500 text-white"
+                                        : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400"
+                                )}>
+                                    {slipups.alcohol_excess ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                </div>
+                                <div className="text-left">
+                                    <h4 className="font-black text-zinc-900 dark:text-zinc-100">Alcohol Excess</h4>
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400">More than 2 drinks in one session</p>
+                                </div>
+                            </div>
+                            <span className={cn(
+                                "font-black text-lg",
+                                slipups.alcohol_excess ? "text-red-500" : "text-zinc-300 dark:text-zinc-600"
+                            )}>−5</span>
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Submit Button */}
-            {!alreadySubmitted && (
-                <>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={submitting || !allAnswered()}
-                        className="w-full bg-[#FF5E00] text-white font-black py-4 rounded-xl text-sm uppercase hover:bg-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {submitting ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                            'Submit'
-                        )}
-                    </button>
-
-                    {!allAnswered() && (
-                        <p className="text-center text-sm text-zinc-400 font-medium">
-                            Answer all items to submit
-                        </p>
+            <div className="space-y-2">
+                <button
+                    onClick={handleSubmit}
+                    disabled={submitting || !allAnswered()}
+                    className="w-full bg-[#FF5E00] text-white font-black py-4 rounded-xl text-sm uppercase hover:bg-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                    {submitting ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                        alreadySubmitted ? 'Update Check-in' : 'Submit Check-in'
                     )}
-                </>
-            )}
+                </button>
+
+                {!allAnswered() && (
+                    <p className="text-center text-sm text-zinc-400 font-medium">
+                        Answer all items to submit
+                    </p>
+                )}
+            </div>
 
             {/* Empty State */}
             {activities.length === 0 && assignedGoals.length === 0 && (
