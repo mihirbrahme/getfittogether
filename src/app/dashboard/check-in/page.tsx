@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Calendar, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getToday, formatDate, parseLocalDate } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
@@ -53,6 +53,9 @@ export default function CheckInPage() {
         alcohol_excess: false
     });
     const [showSlipups, setShowSlipups] = useState(false);
+
+    // Note to admin state
+    const [noteToAdmin, setNoteToAdmin] = useState('');
 
     // Date selection for backdated check-ins (today, yesterday, 2 days ago)
     const [selectedDate, setSelectedDate] = useState(getToday());
@@ -118,7 +121,7 @@ export default function CheckInPage() {
             // Fetch existing responses for display
             const { data: existingLog } = await supabase
                 .from('daily_logs')
-                .select('custom_logs, junk_food, processed_sugar, alcohol_excess')
+                .select('custom_logs, junk_food, processed_sugar, alcohol_excess, note_to_admin')
                 .eq('user_id', user.id)
                 .eq('date', dateToFetch)
                 .single();
@@ -129,6 +132,7 @@ export default function CheckInPage() {
                     processed_sugar: existingLog.processed_sugar || false,
                     alcohol_excess: existingLog.alcohol_excess || false
                 });
+                setNoteToAdmin(existingLog.note_to_admin || '');
             }
         }
 
@@ -263,7 +267,8 @@ export default function CheckInPage() {
                     junk_food: Boolean(slipups.junk_food),
                     processed_sugar: Boolean(slipups.processed_sugar),
                     alcohol_excess: Boolean(slipups.alcohol_excess),
-                    negative_points: negativePoints
+                    negative_points: negativePoints,
+                    note_to_admin: noteToAdmin.trim() || null
                 }, { onConflict: 'user_id,date' })
                 .select()
                 .single();
@@ -617,6 +622,34 @@ export default function CheckInPage() {
                             )}>−5</span>
                         </button>
                     </div>
+                )}
+            </div>
+
+            {/* Note to Admin Section */}
+            <div className="premium-card rounded-[2rem] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
+                        <MessageSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                        <h3 className="font-black text-zinc-900 dark:text-zinc-100">Note to Coach</h3>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Optional - any questions, suggestions, or requests?
+                        </p>
+                    </div>
+                </div>
+                <textarea
+                    value={noteToAdmin}
+                    onChange={(e) => setNoteToAdmin(e.target.value)}
+                    placeholder="Share feedback, ask questions, or request help from your coach..."
+                    className="w-full p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-zinc-400"
+                    rows={3}
+                    maxLength={500}
+                />
+                {noteToAdmin.length > 0 && (
+                    <p className="text-xs text-zinc-400 mt-2 text-right">
+                        {noteToAdmin.length}/500
+                    </p>
                 )}
             </div>
 

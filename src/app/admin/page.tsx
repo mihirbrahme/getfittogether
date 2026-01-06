@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { Settings, Calendar, Users, Activity, LogOut, LayoutDashboard, Database, ShieldAlert, Loader2, Trophy, Sparkles, TrendingUp, Zap, ClipboardCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import EventScheduler from '@/components/admin/EventScheduler';
 import WODManager from '@/components/admin/WODManager';
@@ -14,6 +14,7 @@ import AnalyticsDashboard from '@/components/admin/AnalyticsDashboard';
 import OverviewDashboard from '@/components/admin/OverviewDashboard';
 import AdminPointsAwarder from '@/components/admin/AdminPointsAwarder';
 import StreakCalculator from '@/components/admin/StreakCalculator';
+import CheckInOverview from '@/components/admin/CheckInOverview';
 import { cn } from '@/lib/utils';
 
 export default function AdminPage() {
@@ -61,6 +62,7 @@ export default function AdminPage() {
 
     const tabs = [
         { id: 'overview', label: 'OVERVIEW', icon: LayoutDashboard },
+        { id: 'checkins', label: 'CHECK-INS', icon: ClipboardCheck },
         { id: 'analytics', label: 'ANALYTICS', icon: TrendingUp },
         { id: 'library', label: 'WOD LIBRARY', icon: Database },
         { id: 'calendar', label: 'CALENDAR', icon: Calendar },
@@ -155,6 +157,7 @@ export default function AdminPage() {
                     {/* Tab Content */}
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                         {activeTab === 'overview' && <OverviewDashboard onNavigate={setActiveTab} />}
+                        {activeTab === 'checkins' && <CheckInOverview />}
                         {activeTab === 'analytics' && <AnalyticsDashboard />}
                         {activeTab === 'library' && <EnhancedLibraryManager />}
                         {activeTab === 'calendar' && <WODCalendar />}
