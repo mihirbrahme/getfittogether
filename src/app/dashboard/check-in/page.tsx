@@ -272,17 +272,7 @@ export default function CheckInPage() {
                 throw new Error(`Failed to submit check-in: ${error.message}`);
             }
 
-            // Verify if DB overwrote our points
-            if (data && data.daily_points !== totalPoints) {
-                console.warn(`DB Mismatch! Sent ${totalPoints}, got ${data.daily_points}`);
-                alert(`Warning: Database logic modified your points from ${totalPoints} to ${data.daily_points}. Please report this to admin.`);
-                // Update local state to match DB reality so UI doesn't lie
-                // But keep earnedPoints as what we calculated for positive enforcement?
-                // No, tell truth.
-                setEarnedPoints(data.daily_points);
-            } else {
-                setEarnedPoints(totalPoints);
-            }
+            setEarnedPoints(totalPoints);
 
             // Log audit event
             try {
@@ -661,41 +651,6 @@ export default function CheckInPage() {
                 </div>
             )}
 
-            {/* DEBUG SECTION */}
-            <div className="mt-8 p-4 bg-gray-100 dark:bg-zinc-800 rounded-lg text-xs font-mono overflow-auto border border-zinc-200 dark:border-zinc-700">
-                <p className="font-bold mb-2">DEBUG INFO (Please verify):</p>
-                <p>Calculated Total: {(() => {
-                    let t = 0;
-                    activities.forEach(a => {
-                        if (responses[`activity_${a.id}`]) t += Math.max(0, a.points || 0);
-                    });
-                    assignedGoals.forEach(g => {
-                        if (responses[`goal_${g.slot}`]) t += Math.max(0, g.goal_templates?.points || 0);
-                    });
-                    if (slipups.junk_food) t -= 5;
-                    if (slipups.processed_sugar) t -= 5;
-                    if (slipups.alcohol_excess) t -= 5;
-                    return t;
-                })()}</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    <div>
-                        <strong>Activities:</strong>
-                        {activities.map(a => (
-                            <div key={a.id} className="border-b border-zinc-200 dark:border-zinc-700 py-1">
-                                {a.activity_name}: <strong>{a.points}pts</strong> [{responses[`activity_${a.id}`] ? 'YES' : 'NO'}] (ID: {a.id})
-                            </div>
-                        ))}
-                    </div>
-                    <div>
-                        <strong>Goals:</strong>
-                        {assignedGoals.map(g => (
-                            <div key={g.slot} className="border-b border-zinc-200 dark:border-zinc-700 py-1">
-                                {g.goal_templates?.name}: <strong>{g.goal_templates?.points}pts</strong> [{responses[`goal_${g.slot}`] ? 'YES' : 'NO'}]
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }
