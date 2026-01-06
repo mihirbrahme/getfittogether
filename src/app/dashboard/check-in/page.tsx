@@ -44,6 +44,7 @@ export default function CheckInPage() {
 
     // Celebration state
     const [showConfetti, setShowConfetti] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [earnedPoints, setEarnedPoints] = useState(0);
 
     // Negative points (slip-ups) state
@@ -288,6 +289,7 @@ export default function CheckInPage() {
 
             // Trigger celebration!
             setShowConfetti(true);
+            setShowSuccessModal(true);
             setAlreadySubmitted(true);
 
         } catch (error: any) {
@@ -319,25 +321,57 @@ export default function CheckInPage() {
             {/* Confetti Celebration */}
             <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
 
-            {/* Success Message */}
-            {showConfetti && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-                    <div className="premium-card p-8 rounded-[2rem] text-center max-w-sm mx-4 animate-scale-in-bounce">
-                        <div className="h-20 w-20 bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl shadow-orange-500/30">
-                            <Sparkles className="h-10 w-10 text-white" />
+            {/* Success Message Modal */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop with extreme blur and dark tint */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-xl animate-fade-in"
+                        onClick={() => setShowSuccessModal(false)}
+                    />
+
+                    {/* Modal Content */}
+                    <div className="relative premium-card w-full max-w-sm overflow-hidden rounded-[2.5rem] border-orange-500/20 shadow-2xl shadow-orange-500/20 animate-scale-in-bounce">
+                        {/* Dramatic Top Decoration */}
+                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-orange-500/20 to-transparent pointer-events-none" />
+
+                        <div className="relative p-8 text-center pt-12">
+                            {/* Animated Icon Ring */}
+                            <div className="relative h-24 w-24 mx-auto mb-6">
+                                <div className="absolute inset-0 bg-orange-500/20 rounded-full animate-ping" />
+                                <div className="relative h-full w-full bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-full flex items-center justify-center shadow-xl shadow-orange-500/40 animate-celebrate">
+                                    <Sparkles className="h-12 w-12 text-white" />
+                                </div>
+                            </div>
+
+                            <h3 className="text-3xl font-black italic text-zinc-900 dark:text-zinc-100 uppercase tracking-tight mb-2">
+                                Daily Streak <span className="text-[#FF5E00]">Active!</span>
+                            </h3>
+
+                            <p className="text-zinc-500 dark:text-zinc-400 font-medium mb-6">
+                                You've conquered your goals for today
+                            </p>
+
+                            <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl p-6 mb-8 border border-zinc-100 dark:border-zinc-800">
+                                <p className="text-zinc-400 dark:text-zinc-500 text-xs font-black uppercase tracking-widest mb-1">Total Points Earned</p>
+                                <div className="text-6xl font-black text-[#FF5E00] tabular-nums flex items-center justify-center gap-1">
+                                    <span className="text-3xl mt-2">+</span>
+                                    <AnimatedNumber value={earnedPoints} duration={1000} delay={500} />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => setShowSuccessModal(false)}
+                                    className="w-full bg-[#FF5E00] text-white font-black py-4 rounded-2xl text-base uppercase tracking-wider shadow-lg shadow-orange-500/30 press-effect hover:bg-orange-600 transition-colors"
+                                >
+                                    Lets Go!
+                                </button>
+                                <p className="text-zinc-400 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
+                                    Points will be added to your total score
+                                </p>
+                            </div>
                         </div>
-                        <h3 className="text-2xl font-black italic text-zinc-900 dark:text-zinc-100 uppercase mb-2">Amazing!</h3>
-                        <p className="text-zinc-500 dark:text-zinc-400 mb-4">You earned</p>
-                        <div className="text-5xl font-black text-[#FF5E00] mb-2">
-                            <AnimatedNumber value={earnedPoints} duration={1500} />
-                        </div>
-                        <p className="text-zinc-500 dark:text-zinc-400 text-sm">points today</p>
-                        <button
-                            onClick={() => setShowConfetti(false)}
-                            className="mt-6 bg-[#FF5E00] text-white font-black py-3 px-8 rounded-xl text-sm uppercase press-effect"
-                        >
-                            Continue
-                        </button>
                     </div>
                 </div>
             )}

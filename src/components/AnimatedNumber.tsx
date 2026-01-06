@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 interface AnimatedNumberProps {
     value: number;
     duration?: number;
+    delay?: number;
     className?: string;
     prefix?: string;
     suffix?: string;
@@ -14,6 +15,7 @@ interface AnimatedNumberProps {
 export default function AnimatedNumber({
     value,
     duration = 1000,
+    delay = 0,
     className = '',
     prefix = '',
     suffix = '',
@@ -24,35 +26,38 @@ export default function AnimatedNumber({
     const animationRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const startValue = previousValue.current;
-        const endValue = value;
-        const startTime = performance.now();
+        const timer = setTimeout(() => {
+            const startValue = previousValue.current;
+            const endValue = value;
+            const startTime = performance.now();
 
-        const animate = (currentTime: number) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
+            const animate = (currentTime: number) => {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
 
-            // Easing function (ease-out)
-            const easeOut = 1 - Math.pow(1 - progress, 3);
+                // Easing function (ease-out)
+                const easeOut = 1 - Math.pow(1 - progress, 3);
 
-            const current = Math.round(startValue + (endValue - startValue) * easeOut);
-            setDisplayValue(current);
+                const current = Math.round(startValue + (endValue - startValue) * easeOut);
+                setDisplayValue(current);
 
-            if (progress < 1) {
-                animationRef.current = requestAnimationFrame(animate);
-            } else {
-                previousValue.current = endValue;
-            }
-        };
+                if (progress < 1) {
+                    animationRef.current = requestAnimationFrame(animate);
+                } else {
+                    previousValue.current = endValue;
+                }
+            };
 
-        animationRef.current = requestAnimationFrame(animate);
+            animationRef.current = requestAnimationFrame(animate);
+        }, delay);
 
         return () => {
+            clearTimeout(timer);
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
             }
         };
-    }, [value, duration]);
+    }, [value, duration, delay]);
 
     const formattedValue = formatValue
         ? formatValue(displayValue)
