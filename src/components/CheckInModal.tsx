@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Check, Info, Star, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { formatDate } from '@/lib/dateUtils';
 
 interface Goal {
     id: string;
@@ -74,7 +75,7 @@ export default function CheckInModal({
 
         const loadUserData = async () => {
             setLoading(true);
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatDate(new Date(), 'iso');
 
             // 1. Load active custom goals for this user
             const { data: userGoals } = await supabase
@@ -137,7 +138,7 @@ export default function CheckInModal({
         // Persist selection change immediately with 14-day expiry
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 14);
-        const expiresStr = expiresAt.toISOString().split('T')[0];
+        const expiresStr = formatDate(expiresAt, 'iso');
 
         await supabase.from('user_goals').update({ active: false }).eq('user_id', userId);
         if (newSelection.length > 0) {

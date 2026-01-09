@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Activity, Plus, Search, Dumbbell, Zap, Calendar, Users, BookOpen, Edit3, Trash2, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface WOD {
     id?: string;
@@ -42,7 +43,7 @@ export default function WODManager({ initialDate, editWODId }: WODManagerProps =
     const [selectedSquads, setSelectedSquads] = useState<string[]>([]); // Multi-squad selection
 
     const [formData, setFormData] = useState<WOD>({
-        date: new Date().toISOString().split('T')[0],
+        date: formatDate(new Date(), 'iso'),
         title: '',
         description: '',
         type: 'weekday',
@@ -163,7 +164,7 @@ export default function WODManager({ initialDate, editWODId }: WODManagerProps =
         setIsAdding(false);
         setSelectedSquads([]);
         setFormData({
-            date: new Date().toISOString().split('T')[0],
+            date: formatDate(new Date(), 'iso'),
             title: '',
             description: '',
             type: 'weekday',

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { X, User, Trophy, Zap, Target, Calendar, TrendingUp, Activity, Check, X as XIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface ParticipantDetailsViewProps {
     userId: string;
@@ -96,7 +97,7 @@ export default function ParticipantDetailsView({ userId, userName, onClose }: Pa
             .from('daily_logs')
             .select('*')
             .eq('user_id', userId)
-            .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+            .gte('date', formatDate(thirtyDaysAgo, 'iso'))
             .order('date', { ascending: false });
 
         if (logsData) setCheckInLogs(logsData);
@@ -104,7 +105,7 @@ export default function ParticipantDetailsView({ userId, userName, onClose }: Pa
         // Calculate streak
         if (logsData && logsData.length > 0) {
             let streak = 0;
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatDate(new Date(), 'iso');
             const sortedLogs = [...logsData].sort((a, b) => b.date.localeCompare(a.date));
 
             for (const log of sortedLogs) {

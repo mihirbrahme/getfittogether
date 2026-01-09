@@ -7,6 +7,7 @@ import {
     ChevronLeft, ChevronRight, Loader2, Eye, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface Participant {
     id: string;
@@ -34,10 +35,7 @@ interface CheckInLog {
 
 export default function CheckInOverview() {
     const [loading, setLoading] = useState(true);
-    const [selectedDate, setSelectedDate] = useState(() => {
-        const today = new Date();
-        return today.toISOString().split('T')[0];
-    });
+    const [selectedDate, setSelectedDate] = useState(() => formatDate(new Date(), 'iso'));
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [checkIns, setCheckIns] = useState<Map<string, CheckInLog>>(new Map());
@@ -108,9 +106,9 @@ export default function CheckInOverview() {
     };
 
     const changeDate = (delta: number) => {
-        const date = new Date(selectedDate);
+        const date = new Date(selectedDate + 'T00:00:00'); // Parse as local
         date.setDate(date.getDate() + delta);
-        setSelectedDate(date.toISOString().split('T')[0]);
+        setSelectedDate(formatDate(date, 'iso'));
     };
 
     const formatDisplayDate = (dateStr: string) => {

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { TrendingUp, Users, Target, Calendar, Zap, Trophy, Activity, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ParticipantDetailsView from './ParticipantDetailsView';
+import { formatDate } from '@/lib/dateUtils';
 
 interface CompletionStats {
     totalWods: number;
@@ -59,8 +60,8 @@ export default function AnalyticsDashboard() {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - parseInt(timeRange));
 
-        const startStr = startDate.toISOString().split('T')[0];
-        const endStr = endDate.toISOString().split('T')[0];
+        const startStr = formatDate(startDate, 'iso');
+        const endStr = formatDate(endDate, 'iso');
 
         // Fetch WODs in range
         const { data: wods } = await supabase
@@ -183,7 +184,7 @@ export default function AnalyticsDashboard() {
         for (let i = parseInt(timeRange) - 1; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = formatDate(date, 'iso');
 
             const completions = logs?.filter(l => l.date === dateStr && l.wod_done).length || 0;
             trend.push({ date: dateStr, completions });

@@ -31,7 +31,11 @@ function getWeekStart(date: Date): string {
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
     d.setDate(diff);
-    return d.toISOString().split('T')[0];
+    // Use local date components instead of UTC (toISOString)
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${dayOfMonth}`;
 }
 
 function formatWeekRange(weekStart: string): string {

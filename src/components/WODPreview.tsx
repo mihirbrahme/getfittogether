@@ -5,6 +5,7 @@ import { Dumbbell, Clock, ChevronRight, Calendar } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface WODPreviewProps {
     className?: string;
@@ -44,7 +45,7 @@ export default function WODPreview({ className }: WODPreviewProps) {
                 return;
             }
 
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatDate(new Date(), 'iso');
 
             // Find today's workout for user's squad
             const { data: scheduledWorkouts } = await supabase

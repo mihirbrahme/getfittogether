@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Users, Trophy, AlertCircle, CheckCircle, Activity, Plus, UserCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface Stats {
     totalParticipants: number;
@@ -33,7 +34,7 @@ export default function OverviewDashboard({ onNavigate }: OverviewDashboardProps
 
     const fetchStats = async () => {
         setLoading(true);
-        const today = new Date().toISOString().split('T')[0];
+        const today = formatDate(new Date(), 'iso');
 
         try {
             // 1. Total Participants (approved only)

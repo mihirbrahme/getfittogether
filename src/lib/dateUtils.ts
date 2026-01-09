@@ -9,7 +9,12 @@
  */
 export function formatDate(date: Date, style: 'full' | 'long' | 'short' | 'iso' = 'full'): string {
     if (style === 'iso') {
-        return date.toISOString().split('T')[0];
+        // Use local date components instead of UTC to prevent timezone shift
+        // toISOString() converts to UTC which can shift the date by ±1 day
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     const options: Intl.DateTimeFormatOptions = {

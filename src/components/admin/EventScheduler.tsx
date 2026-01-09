@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Calendar, Plus, Trash2, Edit3, CheckCircle, Clock, Award, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/dateUtils';
 
 interface Event {
     id: string;
@@ -27,7 +28,7 @@ export default function EventScheduler() {
     const [editingEvent, setEditingEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
+        date: formatDate(new Date(), 'iso'),
         title: '',
         description: '',
         bonus_points: 50,
@@ -141,7 +142,7 @@ export default function EventScheduler() {
 
             setIsAdding(false);
             setFormData({
-                date: new Date().toISOString().split('T')[0],
+                date: formatDate(new Date(), 'iso'),
                 title: '',
                 description: '',
                 bonus_points: 50,
@@ -219,7 +220,7 @@ export default function EventScheduler() {
                         if (isAdding) {
                             setEditingEvent(null);
                             setFormData({
-                                date: new Date().toISOString().split('T')[0],
+                                date: formatDate(new Date(), 'iso'),
                                 title: '',
                                 description: '',
                                 bonus_points: 50,
