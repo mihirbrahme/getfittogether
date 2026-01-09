@@ -58,10 +58,33 @@ interface VideoThumbnailButtonProps {
 export function VideoThumbnailButton({ url, title }: VideoThumbnailButtonProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Extract YouTube video ID for thumbnail
+    // Extract YouTube video ID for thumbnail - handles multiple URL formats
     const getVideoId = (url: string) => {
-        const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-        return match ? match[1] : null;
+        if (!url) return null;
+        const trimmedUrl = url.trim();
+
+        const patterns = [
+            // Standard watch URL
+            /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]{11})/i,
+            // Short URL
+            /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})/i,
+            // Embed URL
+            /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/i,
+            // Shorts URL
+            /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/i,
+            // Old style /v/ URL
+            /(?:https?:\/\/)?(?:www\.)?youtube\.com\/v\/([a-zA-Z0-9_-]{11})/i,
+            // Direct video ID
+            /^([a-zA-Z0-9_-]{11})$/
+        ];
+
+        for (const pattern of patterns) {
+            const match = trimmedUrl.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        return null;
     };
 
     const videoId = getVideoId(url);

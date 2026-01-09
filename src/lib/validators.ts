@@ -58,9 +58,10 @@ export function validateWOD(data: WODFormData): WODValidationResult {
 
     // Video URL Validation (optional)
     if (data.video_url && data.video_url.trim().length > 0) {
-        const youtubePattern = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})|^([a-zA-Z0-9_-]{11})$/i;
+        // Comprehensive pattern matching all YouTube URL formats
+        const youtubePattern = /(?:(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|v\/)|(?:https?:\/\/)?youtu\.be\/)([a-zA-Z0-9_-]{11})|^([a-zA-Z0-9_-]{11})$/i;
 
-        if (!youtubePattern.test(data.video_url)) {
+        if (!youtubePattern.test(data.video_url.trim())) {
             warnings.push('Video URL doesn\'t appear to be a valid YouTube link. It may not display correctly.');
         }
     }
