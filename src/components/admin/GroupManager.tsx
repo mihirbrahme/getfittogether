@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus, Settings, Target } from 'lucide-react';
+import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ActivityConfiguration from './ActivityConfiguration';
-import MemberGoalAssignment from './MemberGoalAssignment';
 
 interface Group {
     id: string;
@@ -41,8 +39,6 @@ export default function GroupManager() {
     const [isAdding, setIsAdding] = useState(false);
     const [loading, setLoading] = useState(true);
     const [newGroupName, setNewGroupName] = useState('');
-    const [selectedSquad, setSelectedSquad] = useState<string | null>(null);
-    const [configTab, setConfigTab] = useState<'activities' | 'goals'>('activities');
     const [editingDates, setEditingDates] = useState<string | null>(null);
     const [tempDates, setTempDates] = useState<{ start: string, end: string }>({ start: '', end: '' });
 
@@ -317,15 +313,7 @@ export default function GroupManager() {
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setSelectedSquad(group.id)}
-                                    className="px-3 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all font-black uppercase text-xs flex items-center gap-2"
-                                    title="Configure Activities & Goals"
-                                >
-                                    <Settings className="h-4 w-4" />
-                                    Config
-                                </button>
+                            <div className="flex items-center justify-end mt-4">
                                 {group.pending_count! > 0 && (
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FF5E00]/10 border border-[#FF5E00]/20 shadow-sm animate-pulse">
                                         <div className="h-1.5 w-1.5 rounded-full bg-[#FF5E00]" />
@@ -395,61 +383,7 @@ export default function GroupManager() {
                 )}
             </section>
 
-            {/* Squad Configuration Modal */}
-            {selectedSquad && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedSquad(null)}>
-                    <div className="bg-white rounded-[3rem] max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                        <div className="sticky top-0 bg-white p-8 border-b border-zinc-100 rounded-t-[3rem] z-10">
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h3 className="text-2xl font-black italic uppercase text-zinc-900">
-                                        {groups.find(g => g.id === selectedSquad)?.name} Config
-                                    </h3>
-                                    <p className="text-sm text-zinc-500">Configure activities and goals</p>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedSquad(null)}
-                                    className="h-12 w-12 rounded-xl bg-zinc-50 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center"
-                                >
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
 
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setConfigTab('activities')}
-                                    className={cn(
-                                        "px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2",
-                                        configTab === 'activities' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                                    )}
-                                >
-                                    <Settings className="h-4 w-4" />
-                                    Activities
-                                </button>
-                                <button
-                                    onClick={() => setConfigTab('goals')}
-                                    className={cn(
-                                        "px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all flex items-center gap-2",
-                                        configTab === 'goals' ? "bg-[#FF5E00] text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                                    )}
-                                >
-                                    <Target className="h-4 w-4" />
-                                    Goals
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-8">
-                            {configTab === 'activities' && (
-                                <ActivityConfiguration squadId={selectedSquad} squadName={groups.find(g => g.id === selectedSquad)?.name || ''} />
-                            )}
-                            {configTab === 'goals' && (
-                                <MemberGoalAssignment squadId={selectedSquad} squadName={groups.find(g => g.id === selectedSquad)?.name || ''} />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

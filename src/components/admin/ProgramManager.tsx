@@ -31,7 +31,7 @@ interface MetricConfig {
     id: string;
     metric_name: string;
     metric_key: string;
-    metric_type: 'core_habit' | 'personal_goal';
+    metric_type: 'core_habit' | 'nutrition' | 'negative';
     points: number;
     description: string;
 }
@@ -54,9 +54,9 @@ export default function ProgramManager() {
         { id: '2', metric_key: 'steps', metric_name: 'Daily Steps', metric_type: 'core_habit', points: 10, description: 'Reached 7,500+ steps' },
         { id: '3', metric_key: 'hydration', metric_name: 'Hydration', metric_type: 'core_habit', points: 6, description: 'Drank 2.5L+ water' },
         { id: '4', metric_key: 'sleep', metric_name: 'Sleep', metric_type: 'core_habit', points: 6, description: 'Slept 7+ hours' },
-        { id: '5', metric_key: 'cleanEating', metric_name: 'Clean Eating', metric_type: 'core_habit', points: 10, description: 'Followed 80/20 rule' },
-        { id: '6', metric_key: 'sugar', metric_name: 'No Added Sugar', metric_type: 'personal_goal', points: 5, description: 'Zero sweets today' },
-        { id: '7', metric_key: 'reading', metric_name: 'Reading', metric_type: 'personal_goal', points: 5, description: '20 mins of education' },
+        { id: '5', metric_key: 'cleanEating', metric_name: 'Clean Eating', metric_type: 'nutrition', points: 10, description: 'Followed 80/20 rule' },
+        { id: '6', metric_key: 'sugar', metric_name: 'No Added Sugar', metric_type: 'nutrition', points: 5, description: 'Zero sweets today' },
+        { id: '7', metric_key: 'junkFood', metric_name: 'Junk Food', metric_type: 'negative', points: -10, description: 'Ate highly processed food' },
     ];
 
     const defaultStreaks: StreakConfig[] = [
@@ -78,6 +78,9 @@ export default function ProgramManager() {
 
     // Action State
     const [activatingId, setActivatingId] = useState<string | null>(null);
+    const [activateModalProg, setActivateModalProg] = useState<string | null>(null);
+    const [selectedSquadsForActivation, setSelectedSquadsForActivation] = useState<string[]>([]);
+    const [resetPointsOnActivate, setResetPointsOnActivate] = useState(true);
 
     useEffect(() => {
         if (view === 'list') {
@@ -174,15 +177,27 @@ export default function ProgramManager() {
         setSaving(false);
     };
 
-    const handleActivate = async (programId: string) => {
-        const resetConfirm = confirm('WARNING: Activating a new program will archive current active programs.\n\nDo you also want to RESET ALL participants points and streaks to 0?\n\nClick OK to reset points to 0, or Cancel to keep existing points intact.');
+    const handleActivateClick = (programId: string) => {
+        setActivateModalProg(programId);
+        setSelectedSquadsForActivation(squads.map(s => s.id));
+        setResetPointsOnActivate(true);
+    };
 
-        setActivatingId(programId);
+    const confirmActivation = async () => {
+        if (!activateModalProg) return;
+        if (selectedSquadsForActivation.length === 0) return alert('Please select at least one squad.');
+
+        setActivatingId(activateModalProg);
+        setActivateModalProg(null);
         try {
-            const { data, error } = await supabase.rpc('activate_program', { p_program_id: programId, p_reset_points: resetConfirm });
+            const { error } = await supabase.rpc('activate_program_for_squads', {
+                p_program_id: activateModalProg,
+                p_squad_ids: selectedSquadsForActivation,
+                p_reset_points: resetPointsOnActivate
+            });
             if (error) throw error;
             await fetchData();
-            alert(`Program successfully activated! Points ${resetConfirm ? 'have been reset to 0' : 'were kept intact'}.`);
+            alert(`Program successfully activated for ${selectedSquadsForActivation.length} squad(s)! Points ${resetPointsOnActivate ? 'have been reset to 0' : 'were kept intact'}.`);
         } catch (e: any) {
             alert('Error activating program: ' + e.message);
         }
@@ -256,7 +271,7 @@ export default function ProgramManager() {
                                 {p.status === 'draft' && (
                                     <>
                                         <button
-                                            onClick={() => handleActivate(p.id)}
+                                            onClick={() => handleActivateClick(p.id)}
                                             disabled={activatingId === p.id}
                                             className="flex-1 bg-zinc-900 text-white py-2 rounded-lg text-xs font-bold uppercase hover:bg-[#FF5E00] transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
                                         >
@@ -281,6 +296,61 @@ export default function ProgramManager() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {activateModalProg && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-black uppercase italic tracking-tight text-zinc-900">Activate Program</h3>
+                            <button onClick={() => setActivateModalProg(null)} className="p-2 text-zinc-400 hover:bg-zinc-100 rounded-full transition-colors"><X className="h-5 w-5" /></button>
+                        </div>
+                        <p className="text-sm text-zinc-500 mb-6">Select which squads this program should be active for. Note: One squad can only have one active program at a time.</p>
+
+                        <div className="space-y-4 mb-6">
+                            <h4 className="text-xs font-bold uppercase text-zinc-400">Select Squads</h4>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                {squads.map(s => (
+                                    <label key={s.id} className="flex items-center gap-3 p-3 bg-zinc-50 border border-zinc-100 rounded-xl cursor-pointer hover:bg-zinc-100 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            className="h-5 w-5 rounded border-zinc-300 text-orange-500 focus:ring-orange-500"
+                                            checked={selectedSquadsForActivation.includes(s.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedSquadsForActivation([...selectedSquadsForActivation, s.id]);
+                                                else setSelectedSquadsForActivation(selectedSquadsForActivation.filter(id => id !== s.id));
+                                            }}
+                                        />
+                                        <span className="text-sm font-bold text-zinc-700">{s.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="mb-8 p-4 bg-orange-50 rounded-xl border border-orange-100">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="h-5 w-5 mt-1 rounded border-orange-300 text-orange-500 focus:ring-orange-500"
+                                    checked={resetPointsOnActivate}
+                                    onChange={(e) => setResetPointsOnActivate(e.target.checked)}
+                                />
+                                <div>
+                                    <span className="block text-sm font-black uppercase text-orange-800 tracking-tight">Reset Squad Points & Streaks</span>
+                                    <span className="block text-xs text-orange-600/80 mt-1">If enabled, all users in the selected squads will have their total points and current streaks reset to 0. Recommended for new seasons.</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <button
+                            onClick={confirmActivation}
+                            disabled={selectedSquadsForActivation.length === 0}
+                            className="w-full bg-[#FF5E00] text-white py-3 rounded-xl font-black uppercase tracking-wider text-sm hover:bg-orange-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Confirm & Activate
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
@@ -363,7 +433,6 @@ export default function ProgramManager() {
                                 <div className="col-span-3">
                                     <select value={m.metric_type} onChange={e => setMetrics(metrics.map((x, j) => i === j ? { ...x, metric_type: e.target.value as any } : x))} className="input-field text-xs py-2 appearance-none">
                                         <option value="core_habit">Core Habit</option>
-                                        <option value="personal_goal">Personal Goal</option>
                                         <option value="nutrition">Nutrition</option>
                                         <option value="negative">Negative</option>
                                     </select>
@@ -397,12 +466,12 @@ export default function ProgramManager() {
                                     </select>
                                 </div>
                                 <div className="col-span-3 relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 uppercase font-black">Days</span>
-                                    <input type="number" value={s.days_required} onChange={e => setStreaks(streaks.map((x, j) => i === j ? { ...x, days_required: parseInt(e.target.value) || 0 } : x))} className="input-field text-xs py-2 pl-12" />
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-zinc-400 uppercase font-black">Day</span>
+                                    <input type="number" value={s.days_required} onChange={e => setStreaks(streaks.map((x, j) => i === j ? { ...x, days_required: parseInt(e.target.value) || 0 } : x))} className="input-field text-xs py-2 pl-8" />
                                 </div>
                                 <div className="col-span-3 relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 uppercase font-black">Pts</span>
-                                    <input type="number" value={s.bonus_points} onChange={e => setStreaks(streaks.map((x, j) => i === j ? { ...x, bonus_points: parseInt(e.target.value) || 0 } : x))} className="input-field text-xs py-2 pl-10" />
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-zinc-400 uppercase font-black">Pts</span>
+                                    <input type="number" value={s.bonus_points} onChange={e => setStreaks(streaks.map((x, j) => i === j ? { ...x, bonus_points: parseInt(e.target.value) || 0 } : x))} className="input-field text-xs py-2 pl-7" />
                                 </div>
                                 <div className="col-span-1 text-center">
                                     <button onClick={() => setStreaks(streaks.filter((_, j) => i !== j))} className="text-zinc-400 hover:text-red-500"><X className="h-4 w-4 mx-auto" /></button>

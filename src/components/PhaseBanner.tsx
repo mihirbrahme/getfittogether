@@ -47,30 +47,42 @@ const PHASES: PhaseInfo[] = [
     }
 ];
 
-function getPhase(dayNumber: number): PhaseInfo {
-    if (dayNumber <= 14) return PHASES[0];
-    if (dayNumber <= 28) return PHASES[1];
-    if (dayNumber <= 56) return PHASES[2];
-    return PHASES[3];
+function getPhase(dayNumber: number, totalDays: number = 70): PhaseInfo {
+    const p1 = Math.max(1, Math.floor(totalDays * 0.2));
+    const p2 = Math.max(2, Math.floor(totalDays * 0.4));
+    const p3 = Math.max(3, Math.floor(totalDays * 0.8));
+
+    if (dayNumber <= p1) return { ...PHASES[0], dayRange: `Days 1-${p1}` };
+    if (dayNumber <= p2) return { ...PHASES[1], dayRange: `Days ${p1 + 1}-${p2}` };
+    if (dayNumber <= p3) return { ...PHASES[2], dayRange: `Days ${p2 + 1}-${p3}` };
+    return { ...PHASES[3], dayRange: `Days ${p3 + 1}-${totalDays}` };
 }
 
 interface PhaseBannerProps {
     currentDay: number;
+    totalDays?: number;
     className?: string;
 }
 
-export default function PhaseBanner({ currentDay, className }: PhaseBannerProps) {
-    const phase = getPhase(currentDay);
+export default function PhaseBanner({ currentDay, totalDays = 70, className }: PhaseBannerProps) {
+    const phase = getPhase(currentDay, totalDays);
     const PhaseIcon = phase.icon;
 
     // Calculate progress within current phase
-    let phaseStart: number, phaseEnd: number;
-    if (phase.number === 1) { phaseStart = 1; phaseEnd = 14; }
-    else if (phase.number === 2) { phaseStart = 15; phaseEnd = 28; }
-    else if (phase.number === 3) { phaseStart = 29; phaseEnd = 56; }
-    else { phaseStart = 57; phaseEnd = 70; }
+    const p1 = Math.max(1, Math.floor(totalDays * 0.2));
+    const p2 = Math.max(2, Math.floor(totalDays * 0.4));
+    const p3 = Math.max(3, Math.floor(totalDays * 0.8));
 
-    const phaseProgress = Math.round(((currentDay - phaseStart) / (phaseEnd - phaseStart)) * 100);
+    let phaseStart: number, phaseEnd: number;
+    if (phase.number === 1) { phaseStart = 1; phaseEnd = p1; }
+    else if (phase.number === 2) { phaseStart = p1 + 1; phaseEnd = p2; }
+    else if (phase.number === 3) { phaseStart = p2 + 1; phaseEnd = p3; }
+    else { phaseStart = p3 + 1; phaseEnd = totalDays; }
+
+    // Protect against division by zero
+    const phaseLength = Math.max(1, phaseEnd - phaseStart);
+    const progressInPhase = Math.max(0, currentDay - phaseStart);
+    const phaseProgress = Math.min(100, Math.round((progressInPhase / phaseLength) * 100));
 
     return (
         <div className={cn(
