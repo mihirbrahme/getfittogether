@@ -60,13 +60,13 @@ export default function CheckInModal({
     userId,
     dayNumber
 }: CheckInModalProps) {
-    const activeCoreGoals = dayType === 'weekend' ? weekendGoals : defaultCoreGoals;
-
+    const [activeCoreGoals, setActiveCoreGoals] = useState<Goal[]>([]);
+    const [availableCustomGoalsList, setAvailableCustomGoalsList] = useState<Goal[]>([]);
     const [selectedCustomGoalIds, setSelectedCustomGoalIds] = useState<string[]>([]);
     const [isSelectingGoals, setIsSelectingGoals] = useState(false);
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<CheckInData>({
-        core: activeCoreGoals.reduce((acc, goal) => ({ ...acc, [goal.id]: false }), {}),
+        core: {},
         custom: {},
     });
 
@@ -77,20 +77,52 @@ export default function CheckInModal({
             setLoading(true);
             const today = formatDate(new Date(), 'iso');
 
-            // 1. Load active custom goals for this user
+            // 1. Load active program metrics first
+            const { data: programId } = await supabase.rpc('get_active_program');
+            let fetchedCore: Goal[] = [];
+            let fetchedCustom: Goal[] = [];
+
+            if (programId) {
+                const { data: metrics } = await supabase
+                    .from('program_metrics')
+                    .select('*')
+                    .eq('program_id', programId)
+                    .eq('enabled', true)
+                    .order('display_order');
+
+                if (metrics) {
+                    fetchedCore = metrics.filter(m => m.metric_type === 'core_habit').map(m => ({
+                        id: m.metric_key, label: m.metric_name, description: m.description || '', points: m.points
+                    }));
+                    fetchedCustom = metrics.filter(m => m.metric_type === 'personal_goal').map(m => ({
+                        id: m.metric_key, label: m.metric_name, description: m.description || '', points: m.points
+                    }));
+                }
+            }
+
+            // Fallback to defaults if no program metrics configured yet
+            if (fetchedCore.length === 0) {
+                fetchedCore = dayType === 'weekend' ? weekendGoals : defaultCoreGoals;
+                fetchedCustom = availableCustomGoals;
+            }
+
+            setActiveCoreGoals(fetchedCore);
+            setAvailableCustomGoalsList(fetchedCustom);
+
+            // 2. Load active custom goals for this user
             const { data: userGoals } = await supabase
                 .from('user_goals')
                 .select('goal_name')
                 .eq('user_id', userId)
                 .eq('active', true);
 
-            const goalIds = userGoals?.map(g => g.goal_name) || [];
+            const goalIds = userGoals?.map(g => g.goal_name).filter(id => fetchedCustom.some(c => c.id === id)) || [];
             setSelectedCustomGoalIds(goalIds);
 
-            // 2. Initial selection if none
-            if (goalIds.length === 0) setIsSelectingGoals(true);
+            // 3. Initial selection if none
+            if (goalIds.length === 0 && fetchedCustom.length > 0) setIsSelectingGoals(true);
 
-            // 3. Load today's log status
+            // 4. Load today's log status
             const { data: log } = await supabase
                 .from('daily_logs')
                 .select('*')
@@ -99,14 +131,19 @@ export default function CheckInModal({
                 .single();
 
             if (log) {
+                const coreData: Record<string, boolean> = {};
+                // Handle legacy exact column matches for transition, and dynamic custom ones
+                fetchedCore.forEach(g => {
+                    if (g.id === 'wod') coreData[g.id] = log.wod_done;
+                    else if (g.id === 'steps') coreData[g.id] = log.steps_done;
+                    else if (g.id === 'hydration') coreData[g.id] = log.water_done;
+                    else if (g.id === 'sleep') coreData[g.id] = log.sleep_done;
+                    else if (g.id === 'cleanEating') coreData[g.id] = log.clean_eating_done;
+                    else coreData[g.id] = log.custom_logs?.[g.id] || false;
+                });
+
                 setData({
-                    core: {
-                        wod: log.wod_done,
-                        steps: log.steps_done,
-                        hydration: log.water_done,
-                        sleep: log.sleep_done,
-                        cleanEating: log.clean_eating_done, // naming mismatch in DB usually
-                    },
+                    core: coreData,
                     custom: {
                         ...(goalIds.reduce((acc, id) => ({ ...acc, [id]: false }), {})),
                         ...(log.custom_logs || {})
@@ -114,7 +151,7 @@ export default function CheckInModal({
                 });
             } else {
                 setData({
-                    core: activeCoreGoals.reduce((acc, goal) => ({ ...acc, [goal.id]: false }), {}),
+                    core: fetchedCore.reduce((acc, goal) => ({ ...acc, [goal.id]: false }), {}),
                     custom: goalIds.reduce((acc, id) => ({ ...acc, [id]: false }), {}),
                 });
             }
@@ -174,8 +211,8 @@ export default function CheckInModal({
 
     const calculatePoints = () => {
         const coreSum = activeCoreGoals.reduce((sum, goal) => sum + (data.core[goal.id] ? goal.points : 0), 0);
-        const activeCustomGoalsList = availableCustomGoals.filter(g => selectedCustomGoalIds.includes(g.id));
-        const customSum = activeCustomGoalsList.reduce((sum, goal) => sum + (data.custom[goal.id] ? goal.points : 0), 0);
+        const activeCustomGoals = availableCustomGoalsList.filter(g => selectedCustomGoalIds.includes(g.id));
+        const customSum = activeCustomGoals.reduce((sum, goal) => sum + (data.custom[goal.id] ? goal.points : 0), 0);
         return coreSum + customSum;
     };
 
@@ -239,7 +276,7 @@ export default function CheckInModal({
                         </div>
                     ) : isSelectingGoals ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 animate-in slide-in-from-bottom-8 duration-700 ease-out">
-                            {availableCustomGoals.map((goal) => (
+                            {availableCustomGoalsList.map((goal) => (
                                 <button
                                     key={goal.id}
                                     onClick={() => toggleCustomGoalSelection(goal.id)}
@@ -321,7 +358,7 @@ export default function CheckInModal({
                                 <div>
                                     <h3 className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.4em] mb-6 px-2 italic">Sector Assignments</h3>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        {availableCustomGoals.filter(g => selectedCustomGoalIds.includes(g.id)).map((goal) => (
+                                        {availableCustomGoalsList.filter(g => selectedCustomGoalIds.includes(g.id)).map((goal) => (
                                             <button
                                                 key={goal.id}
                                                 onClick={() => toggleGoal(goal.id, 'custom')}

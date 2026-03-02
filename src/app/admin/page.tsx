@@ -15,6 +15,7 @@ import OverviewDashboard from '@/components/admin/OverviewDashboard';
 import AdminPointsAwarder from '@/components/admin/AdminPointsAwarder';
 import StreakCalculator from '@/components/admin/StreakCalculator';
 import CheckInOverview from '@/components/admin/CheckInOverview';
+import ProgramManager from '@/components/admin/ProgramManager';
 import { cn } from '@/lib/utils';
 
 export default function AdminPage() {
@@ -62,6 +63,7 @@ export default function AdminPage() {
 
     const tabs = [
         { id: 'overview', label: 'OVERVIEW', icon: LayoutDashboard },
+        { id: 'programs', label: 'PROGRAMS', icon: Sparkles },
         { id: 'checkins', label: 'CHECK-INS', icon: ClipboardCheck },
         { id: 'analytics', label: 'ANALYTICS', icon: TrendingUp },
         { id: 'library', label: 'WOD LIBRARY', icon: Database },
@@ -157,6 +159,7 @@ export default function AdminPage() {
                     {/* Tab Content */}
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                         {activeTab === 'overview' && <OverviewDashboard onNavigate={setActiveTab} />}
+                        {activeTab === 'programs' && <ProgramManager />}
                         {activeTab === 'checkins' && <CheckInOverview />}
                         {activeTab === 'analytics' && <AnalyticsDashboard />}
                         {activeTab === 'library' && <EnhancedLibraryManager />}

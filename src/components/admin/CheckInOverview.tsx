@@ -42,6 +42,7 @@ export default function CheckInOverview() {
     const [filter, setFilter] = useState<'all' | 'checked' | 'missed'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedParticipant, setExpandedParticipant] = useState<string | null>(null);
+    const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -49,6 +50,9 @@ export default function CheckInOverview() {
 
     const fetchData = async () => {
         setLoading(true);
+
+        const { data: programId } = await supabase.rpc('get_active_program');
+        if (programId) setActiveProgramId(programId);
 
         // Fetch all approved participants
         const { data: members } = await supabase
@@ -87,10 +91,16 @@ export default function CheckInOverview() {
         }
 
         // Fetch check-ins for selected date
-        const { data: logs } = await supabase
+        let logsQuery = supabase
             .from('daily_logs')
             .select('user_id, date, daily_points, custom_logs, note_to_admin, junk_food, processed_sugar, alcohol_excess')
             .eq('date', selectedDate);
+
+        if (programId) {
+            logsQuery = logsQuery.eq('program_id', programId);
+        }
+
+        const { data: logs } = await logsQuery;
 
         if (logs) {
             const checkInMap = new Map<string, CheckInLog>();

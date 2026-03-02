@@ -13,6 +13,7 @@ import AnimatedNumber from '@/components/AnimatedNumber';
 import ProgressRing from '@/components/ProgressRing';
 import PhaseBanner from '@/components/PhaseBanner';
 import ProgressPrompt from '@/components/ProgressPrompt';
+import InstallAppPrompt from '@/components/InstallAppPrompt';
 
 const TOTAL_DAYS = 70;
 const MAX_DAILY_POINTS = 75; // WOD(25) + Steps(10) + Diet(10) + Sleep(10) + Hydration(10) + Goals(10)
@@ -32,11 +33,15 @@ export default function Dashboard() {
     const [todayCompletion, setTodayCompletion] = useState(0);
     const [lastBiometricDate, setLastBiometricDate] = useState<string | null>(null);
     const [showProgressPrompt, setShowProgressPrompt] = useState(true);
+    const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return router.push('/auth?mode=login');
+
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
             // 1. Fetch Profile & Group Start Date
             const { data: profile } = await supabase
@@ -45,6 +50,7 @@ export default function Dashboard() {
                     first_name,
                     full_name,
                     total_points,
+                    last_streak_calculation,
                     group_members (
                         groups (
                             start_date
@@ -59,12 +65,70 @@ export default function Dashboard() {
                 setFirstName(nameToUse);
                 setTotalPoints(profile.total_points || 0);
 
-                // @ts-ignore
-                const groupStartDate = profile.group_members?.[0]?.groups?.start_date;
-                if (groupStartDate) {
-                    const start = new Date(groupStartDate);
+                // Check for active program
+                const { data: programId } = await supabase.rpc('get_active_program');
+                let programStart = null;
+
+                if (programId) {
+                    setActiveProgramId(programId);
+
+                    // Fetch program details
+                    const { data: program } = await supabase
+                        .from('programs')
+                        .select('start_date, end_date')
+                        .eq('id', programId)
+                        .single();
+
+                    if (program) {
+                        programStart = new Date(program.start_date);
+
+                        // Override with squad specific date if exists
+                        // @ts-ignore
+                        const groupId = profile.group_members?.[0]?.group_id;
+                        if (groupId) {
+                            const { data: squadOverride } = await supabase
+                                .from('program_squad_dates')
+                                .select('start_date, end_date')
+                                .eq('program_id', programId)
+                                .eq('squad_id', groupId)
+                                .single();
+
+                            if (squadOverride) {
+                                programStart = new Date(squadOverride.start_date);
+                            }
+                        }
+                    }
+
+                    // Trigger auto-streak calculation
+                    if (!profile.last_streak_calculation || new Date(profile.last_streak_calculation) < new Date(todayStr)) {
+                        await supabase.rpc('calculate_user_streaks_v2', {
+                            p_user_id: user.id,
+                            p_program_id: programId
+                        });
+
+                        // Refetch total points as they might have been updated by streaks
+                        const { data: updatedProfile } = await supabase
+                            .from('profiles')
+                            .select('total_points')
+                            .eq('id', user.id)
+                            .single();
+
+                        if (updatedProfile) {
+                            setTotalPoints(updatedProfile.total_points || 0);
+                        }
+                    }
+                } else {
+                    // Fallback to legacy group start date
+                    // @ts-ignore
+                    const groupStartDate = profile.group_members?.[0]?.groups?.start_date;
+                    if (groupStartDate) {
+                        programStart = new Date(groupStartDate);
+                    }
+                }
+
+                if (programStart) {
                     const today = new Date();
-                    const diff = differenceInDays(today, start);
+                    const diff = differenceInDays(today, programStart);
                     const dayNum = Math.max(1, diff + 1);
                     setCurrentDay(dayNum);
                     setDaysRemaining(Math.max(0, TOTAL_DAYS - dayNum));
@@ -72,20 +136,20 @@ export default function Dashboard() {
             }
 
             // 2. Fetch Weekly Logs (Last 7 Days) and calculate streak
-            const today = new Date();
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
             const last7Days = Array.from({ length: 7 }, (_, i) => {
                 const d = subDays(today, 6 - i);
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             });
 
-            const { data: logs } = await supabase
+            // Fetch logs. If we have an active program, filter by it (or null for legacy migration transition).
+            let logsQuery = supabase
                 .from('daily_logs')
                 .select('date, daily_points')
                 .eq('user_id', user.id)
                 .order('date', { ascending: false })
                 .limit(30);
+
+            const { data: logs } = await logsQuery;
 
             // Map logs to status array
             const logsMap = new Map(logs?.map(l => [l.date, l.daily_points]) || []);
@@ -158,6 +222,9 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6 animate-fade-in-up pb-20">
+            {/* Native App Install Prompt */}
+            <InstallAppPrompt />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

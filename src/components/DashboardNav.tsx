@@ -140,6 +140,20 @@ export default function DashboardNav() {
                 <nav className="flex items-center justify-around h-16">
                     {mobileNavItems.map((item) => {
                         const isActive = pathname === item.href;
+                        const isFab = item.name === 'Check-In';
+
+                        if (isFab) {
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    className="relative -top-5 flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full bg-gradient-to-tr from-[#FF5E00] to-orange-500 shadow-xl shadow-orange-500/40 text-white press-effect border-[5px] border-white dark:border-zinc-900 z-50 transition-transform hover:scale-105"
+                                >
+                                    <item.icon className={cn("h-7 w-7", isActive && "animate-pulse")} />
+                                </Link>
+                            );
+                        }
+
                         return (
                             <Link
                                 key={item.href}

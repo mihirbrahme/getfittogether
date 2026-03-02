@@ -205,7 +205,21 @@ export default function CheckInPage() {
         }
     }, [selectedDate, fetchDataForDate]);
 
+    // Haptic feedback helper
+    const triggerHaptic = (type: 'success' | 'warning' | 'light') => {
+        if (typeof window !== 'undefined' && navigator.vibrate) {
+            try {
+                if (type === 'success') navigator.vibrate([100, 50, 100, 50, 200]); // Celebration
+                else if (type === 'warning') navigator.vibrate([50, 50, 50]); // Slip-up / No
+                else navigator.vibrate(50); // Standard Yes tap
+            } catch (e) {
+                // Ignore if browser blocks it
+            }
+        }
+    };
+
     const handleToggle = (key: string, value: boolean) => {
+        triggerHaptic(value ? 'light' : 'warning');
         setResponses(prev => ({
             ...prev,
             [key]: value
@@ -232,9 +246,11 @@ export default function CheckInPage() {
             // Points from activities (with validation)
             activities.forEach(activity => {
                 if (responses[`activity_${activity.id}`] === true) {
-                    // Use actual configured points
-                    const points = Math.max(0, activity.points || 0);
-                    totalPoints += points;
+                    if (activity.activity_type !== 'negative') {
+                        // Use actual configured points
+                        const points = Math.max(0, activity.points || 0);
+                        totalPoints += points;
+                    }
                 }
             });
 
@@ -247,14 +263,21 @@ export default function CheckInPage() {
                 }
             });
 
-            // Calculate negative points with bounds checking (max -15 for 3 slip-ups)
+            // Calculate negative points with bounds checking
             let negativePoints = 0;
             if (slipups.junk_food) negativePoints -= 5;
             if (slipups.processed_sugar) negativePoints -= 5;
             if (slipups.alcohol_excess) negativePoints -= 5;
 
-            // Ensure negative points are within valid range
-            negativePoints = Math.max(-15, Math.min(0, negativePoints));
+            // Add dynamic slip-ups from program metrics
+            activities.forEach(activity => {
+                if (activity.activity_type === 'negative' && responses[`activity_${activity.id}`] === true) {
+                    negativePoints -= Math.abs(activity.points || 0);
+                }
+            });
+
+            // Ensure negative points are within valid bounds
+            negativePoints = Math.min(0, negativePoints);
             totalPoints += negativePoints;
 
             // Insert/update daily log with validation
@@ -288,6 +311,7 @@ export default function CheckInPage() {
             }
 
             // Trigger celebration!
+            triggerHaptic('success');
             setShowConfetti(true);
             setShowSuccessModal(true);
             setAlreadySubmitted(true);
@@ -367,13 +391,13 @@ export default function CheckInPage() {
                     })}
                 </div>
                 {/* Activities Section */}
-                {activities.length > 0 && (
+                {activities.filter(a => a.activity_type !== 'negative').length > 0 && (
                     <div className="space-y-4 animate-stagger">
                         <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
                             <Activity className="h-6 w-6 text-[#FF5E00]" />
                             Daily Tasks
                         </h2>
-                        {activities.map((activity) => (
+                        {activities.filter(a => a.activity_type !== 'negative').map((activity) => (
                             <div
                                 key={activity.id}
                                 className="premium-card rounded-2xl p-6"
@@ -473,6 +497,62 @@ export default function CheckInPage() {
                                     >
                                         <X className="h-5 w-5 mx-auto" />
                                         <span className="block mt-1 text-[10px]">No</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Dynamic Penalties Section */}
+                {activities.filter(a => a.activity_type === 'negative').length > 0 && (
+                    <div className="space-y-4 animate-stagger">
+                        <h2 className="text-xl font-black italic uppercase text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                            Program Penalties
+                        </h2>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium -mt-2">
+                            Did you slip up on any of these today?
+                        </p>
+                        {activities.filter(a => a.activity_type === 'negative').map((activity) => (
+                            <div
+                                key={activity.id}
+                                className="premium-card rounded-2xl p-6 border-red-50 dark:border-red-900/20"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
+                                            {activity.activity_name}
+                                        </h3>
+                                        <p className="text-sm text-red-500 font-bold">
+                                            −{Math.abs(activity.points)} points
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => handleToggle(`activity_${activity.id}`, true)}
+                                        className={cn(
+                                            "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                            responses[`activity_${activity.id}`] === true
+                                                ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                                                : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-red-300 dark:hover:border-red-700 hover:text-red-500"
+                                        )}
+                                    >
+                                        <Check className="h-5 w-5 mx-auto" />
+                                        <span className="block mt-1 text-[10px]">Yes, I did</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleToggle(`activity_${activity.id}`, false)}
+                                        className={cn(
+                                            "flex-1 py-3 rounded-xl font-black text-sm uppercase transition-all press-effect",
+                                            responses[`activity_${activity.id}`] === false
+                                                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                                                : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-500"
+                                        )}
+                                    >
+                                        <X className="h-5 w-5 mx-auto" />
+                                        <span className="block mt-1 text-[10px]">No, I didn't</span>
                                     </button>
                                 </div>
                             </div>

@@ -356,6 +356,14 @@ export default function Auth({ defaultMode = 'login' }: AuthProps) {
                         </>
                     )}
                 </button>
+
+                {mode === 'login' && (
+                    <div className="mt-6 text-center">
+                        <a href="/admin" className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest hover:text-[#FF5E00] transition-colors flex items-center justify-center gap-2">
+                            <ShieldCheck className="h-3 w-3" /> Admin Access
+                        </a>
+                    </div>
+                )}
             </form>
         </div>
     );

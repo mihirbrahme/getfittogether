@@ -16,6 +16,7 @@ export default function Leaderboard() {
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [programName, setProgramName] = useState<string | null>(null);
     const userRowRef = useRef<HTMLDivElement>(null);
 
     const fetchLeaderboard = async () => {
@@ -24,6 +25,16 @@ export default function Leaderboard() {
         if (user) {
             setCurrentUserId(user.id);
         }
+
+        // Fetch active program name for the UI
+        const { data: programId } = await supabase.rpc('get_active_program');
+        if (programId) {
+            const { data: program } = await supabase.from('programs').select('name').eq('id', programId).single();
+            if (program) setProgramName(program.name);
+        }
+
+        // Note: profiles.total_points is reset to 0 upon program activation,
+        // so this naturally ranks users for the *current* active program.
 
         const { data, error } = await supabase
             .from('profiles')
@@ -92,7 +103,9 @@ export default function Leaderboard() {
                         <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-zinc-100 italic tracking-tighter uppercase font-heading leading-none mb-1">
                             TOP <span className="text-[#FF5E00]">PERFORMERS</span>
                         </h2>
-                        <p className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.3em]">Global Community Rankings</p>
+                        <p className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.3em]">
+                            {programName ? `${programName} Rankings` : 'Global Community Rankings'}
+                        </p>
                     </div>
                 </div>
                 <div className="hidden sm:flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 px-4 py-2 rounded-xl border border-zinc-100 dark:border-zinc-700">
