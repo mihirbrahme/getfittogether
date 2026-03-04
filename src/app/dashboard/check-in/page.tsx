@@ -19,6 +19,7 @@ interface CheckInActivity {
     icon: string;
     enabled: boolean;
     display_order: number;
+    description?: string;
 }
 
 interface AdminAssignedGoal {
@@ -493,7 +494,10 @@ export default function CheckInPage() {
                                         <h3 className="font-black text-lg text-zinc-900 dark:text-zinc-100">
                                             {activity.activity_name}
                                         </h3>
-                                        <p className="text-sm text-[#FF5E00] font-bold">
+                                        {activity.description && (
+                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{activity.description}</p>
+                                        )}
+                                        <p className="text-sm text-[#FF5E00] font-bold mt-1">
                                             {activity.points} points
                                         </p>
                                     </div>

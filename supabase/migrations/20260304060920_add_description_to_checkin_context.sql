@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE OR REPLACE FUNCTION get_checkin_context(p_date DATE)
 RETURNS JSONB
 LANGUAGE sql
@@ -62,7 +60,3 @@ AS $$
   WHERE gm.user_id = auth.uid() AND gm.status = 'approved'
   LIMIT 1;
 $$;
-
-GRANT EXECUTE ON FUNCTION get_checkin_context(DATE) TO authenticated;
-
-COMMIT;

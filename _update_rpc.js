@@ -1,6 +1,9 @@
-BEGIN;
+const fs = require('fs');
 
-CREATE OR REPLACE FUNCTION get_checkin_context(p_date DATE)
+const PROJECT_REF = 'lfkdkyrvgsqjrgtkqjep';
+const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxma2RreXJ2Z3NxanJndGtxamVwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjU1NTE0NCwiZXhwIjoyMDgyMTMxMTQ0fQ.cWPm1IFNUF4L7mqQoK9m0DSdoc1WQJPsjs8r3y-Kp1Q';
+
+const sql = `CREATE OR REPLACE FUNCTION get_checkin_context(p_date DATE)
 RETURNS JSONB
 LANGUAGE sql
 STABLE
@@ -63,6 +66,33 @@ AS $$
   LIMIT 1;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_checkin_context(DATE) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_checkin_context(DATE) TO authenticated;`;
 
-COMMIT;
+async function run() {
+    const resp = await fetch(`https://${PROJECT_REF}.supabase.co/rest/v1/rpc/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': SERVICE_KEY,
+            'Authorization': `Bearer ${SERVICE_KEY}`,
+            'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({})
+    });
+    console.log('Available RPCs check:', resp.status);
+
+    // Try the SQL Editor API 
+    const mgmtResp = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SERVICE_KEY}`
+        },
+        body: JSON.stringify({ query: sql })
+    });
+    console.log('Management API status:', mgmtResp.status);
+    const text = await mgmtResp.text();
+    console.log('Response:', text.substring(0, 500));
+}
+
+run().catch(e => console.error(e));
