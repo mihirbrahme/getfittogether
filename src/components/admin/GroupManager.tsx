@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus } from 'lucide-react';
+import { Users, Plus, Check, X, Shield, Lock, Clipboard, UserPlus, ArrowLeft, Activity, Target, ChevronRight, Trash2, Trophy, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ActivityConfiguration from './ActivityConfiguration';
+import MemberGoalAssignment from './MemberGoalAssignment';
 
 interface Group {
     id: string;
@@ -33,25 +35,37 @@ interface PendingMember {
     };
 }
 
+interface RosterMember {
+    membership_id: string;
+    user_id: string;
+    full_name: string;
+    display_name: string;
+    total_points: number;
+    created_at: string;
+}
+
+type SquadSubTab = 'roster' | 'activities' | 'goals' | 'pending';
+
 export default function GroupManager() {
     const [groups, setGroups] = useState<Group[]>([]);
     const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
     const [isAdding, setIsAdding] = useState(false);
     const [loading, setLoading] = useState(true);
     const [newGroupName, setNewGroupName] = useState('');
-    const [editingDates, setEditingDates] = useState<string | null>(null);
-    const [tempDates, setTempDates] = useState<{ start: string, end: string }>({ start: '', end: '' });
+
+    // Squad detail view
+    const [selectedSquad, setSelectedSquad] = useState<Group | null>(null);
+    const [squadSubTab, setSquadSubTab] = useState<SquadSubTab>('roster');
+    const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
+    const [rosterLoading, setRosterLoading] = useState(false);
 
     const fetchGroups = async () => {
-        // In a real app, we'd use a more complex query or multiple calls to get counts
-        // For now, let's just get the groups
         const { data: groupsData, error: groupsError } = await supabase
             .from('groups')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (!groupsError) {
-            // Get counts for each group
             const groupsWithCounts = await Promise.all((groupsData || []).map(async (group) => {
                 const { count: memberCount } = await supabase
                     .from('group_members')
@@ -70,20 +84,12 @@ export default function GroupManager() {
             setGroups(groupsWithCounts);
         }
 
-        // Fetch pending members for the approval queue
+        // Fetch all pending members
         const { data: pendingData, error: pendingError } = await supabase
             .from('group_members')
             .select(`
-                id,
-                user_id,
-                group_id,
-                status,
-                created_at,
-                profiles (
-                    first_name,
-                    last_name,
-                    full_name
-                ),
+                id, user_id, group_id, status, created_at,
+                profiles ( first_name, last_name, full_name ),
                 groups ( name )
             `)
             .eq('status', 'pending')
@@ -93,21 +99,53 @@ export default function GroupManager() {
         setLoading(false);
     };
 
+    const fetchRoster = async (groupId: string) => {
+        setRosterLoading(true);
+        const { data } = await supabase
+            .from('group_members')
+            .select(`
+                id,
+                user_id,
+                created_at,
+                profiles!inner (
+                    id, full_name, display_name, total_points
+                )
+            `)
+            .eq('group_id', groupId)
+            .eq('status', 'approved')
+            .order('created_at', { ascending: true });
+
+        if (data) {
+            setRosterMembers(data.map((m: any) => ({
+                membership_id: m.id,
+                user_id: m.user_id,
+                full_name: m.profiles.full_name || 'Unknown',
+                display_name: m.profiles.display_name || m.profiles.full_name || 'Unknown',
+                total_points: m.profiles.total_points || 0,
+                created_at: m.created_at
+            })));
+        }
+        setRosterLoading(false);
+    };
+
     useEffect(() => {
         fetchGroups();
     }, []);
+
+    useEffect(() => {
+        if (selectedSquad) {
+            fetchRoster(selectedSquad.id);
+        }
+    }, [selectedSquad]);
 
     const createGroup = async (e: React.FormEvent) => {
         e.preventDefault();
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         const { data: { user } } = await supabase.auth.getUser();
-
         if (!user) return alert('You must be logged in to create a group');
 
         const { error } = await supabase.from('groups').insert([{
-            name: newGroupName,
-            code: code,
-            admin_id: user.id
+            name: newGroupName, code, admin_id: user.id
         }]);
 
         if (!error) {
@@ -121,23 +159,18 @@ export default function GroupManager() {
 
     const moderateMember = async (memberId: string, approve: boolean) => {
         if (approve) {
-            // Get the user_id from the group_member record
             const { data: memberData } = await supabase
                 .from('group_members')
                 .select('user_id')
                 .eq('id', memberId)
                 .single();
-
             if (!memberData) return;
 
-            // Update both group_members and profile status
             const { error: memberError } = await supabase
                 .from('group_members')
                 .update({ status: 'approved' })
                 .eq('id', memberId);
 
-            // Reset points/streaks on approval so they start fresh with the current program
-            // This prevents issues where a user was pending during program activation
             const { error: profileError } = await supabase
                 .from('profiles')
                 .update({
@@ -156,20 +189,257 @@ export default function GroupManager() {
 
             if (!memberError && !profileError) {
                 fetchGroups();
+                if (selectedSquad) fetchRoster(selectedSquad.id);
             } else {
                 alert('Error approving member: ' + (memberError?.message || profileError?.message));
             }
         } else {
-            // Reject: delete group membership
             const { error } = await supabase
                 .from('group_members')
                 .delete()
                 .eq('id', memberId);
-
             if (!error) fetchGroups();
         }
     };
 
+    const removeMember = async (membershipId: string, userId: string, name: string) => {
+        if (!confirm(`Remove ${name} from ${selectedSquad?.name}? This cannot be undone.`)) return;
+
+        const { error } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('id', membershipId);
+
+        if (!error) {
+            // Also set profile status back to pending
+            await supabase
+                .from('profiles')
+                .update({ status: 'pending' })
+                .eq('id', userId);
+
+            fetchGroups();
+            if (selectedSquad) fetchRoster(selectedSquad.id);
+        } else {
+            alert('Error removing member: ' + error.message);
+        }
+    };
+
+    const openSquadDetail = (group: Group) => {
+        setSelectedSquad(group);
+        setSquadSubTab('roster');
+    };
+
+    // ─── SQUAD DETAIL VIEW ──────────────────────────────────
+    if (selectedSquad) {
+        const squadPending = pendingMembers.filter(m => m.group_id === selectedSquad.id);
+
+        const subTabs: { id: SquadSubTab; label: string; icon: typeof Users; count?: number }[] = [
+            { id: 'roster', label: 'Roster', icon: Users, count: rosterMembers.length },
+            { id: 'activities', label: 'Activities', icon: Activity },
+            { id: 'goals', label: 'Goals', icon: Target },
+            { id: 'pending', label: 'Pending', icon: UserPlus, count: squadPending.length },
+        ];
+
+        return (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                {/* Back + Header */}
+                <div className="flex items-center gap-6">
+                    <button
+                        onClick={() => setSelectedSquad(null)}
+                        className="h-12 w-12 bg-zinc-100 hover:bg-zinc-200 rounded-2xl flex items-center justify-center transition-colors"
+                    >
+                        <ArrowLeft className="h-5 w-5 text-zinc-600" />
+                    </button>
+                    <div>
+                        <h2 className="text-3xl font-black italic uppercase tracking-tighter text-zinc-900 font-heading leading-none">
+                            {selectedSquad.name} <span className="text-[#FF5E00]">HQ</span>
+                        </h2>
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] mt-1">
+                            Code: {selectedSquad.code} • {rosterMembers.length} members
+                        </p>
+                    </div>
+                </div>
+
+                {/* Sub-tabs */}
+                <div className="flex gap-3">
+                    {subTabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setSquadSubTab(tab.id)}
+                            className={cn(
+                                "flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all duration-300",
+                                squadSubTab === tab.id
+                                    ? "bg-zinc-900 text-white shadow-lg"
+                                    : "bg-zinc-50 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 border border-zinc-100"
+                            )}
+                        >
+                            <tab.icon className="h-4 w-4" />
+                            {tab.label}
+                            {tab.count !== undefined && tab.count > 0 && (
+                                <span className={cn(
+                                    "ml-1 px-2 py-0.5 rounded-lg text-[9px] font-black",
+                                    squadSubTab === tab.id
+                                        ? "bg-[#FF5E00] text-white"
+                                        : tab.id === 'pending' ? "bg-[#FF5E00]/10 text-[#FF5E00]" : "bg-zinc-200 text-zinc-500"
+                                )}>
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Sub-tab Content */}
+                <div className="animate-in fade-in duration-300">
+                    {/* ─── ROSTER TAB ─── */}
+                    {squadSubTab === 'roster' && (
+                        <div className="premium-card rounded-[2.5rem] p-8">
+                            <h3 className="text-xl font-black italic uppercase tracking-tight text-zinc-900 mb-6 flex items-center gap-3">
+                                <Users className="h-5 w-5 text-[#FF5E00]" />
+                                Active Members
+                            </h3>
+
+                            {rosterLoading ? (
+                                <div className="text-center py-12">
+                                    <div className="h-8 w-8 border-3 border-[#FF5E00] border-t-transparent rounded-full animate-spin mx-auto" />
+                                </div>
+                            ) : rosterMembers.length === 0 ? (
+                                <div className="text-center py-12 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+                                    <Users className="h-12 w-12 text-zinc-200 mx-auto mb-4" />
+                                    <p className="text-zinc-400 font-bold text-sm">No approved members yet</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-hidden rounded-2xl border border-zinc-100">
+                                    <table className="w-full">
+                                        <thead className="bg-zinc-50 border-b border-zinc-100">
+                                            <tr>
+                                                <th className="text-left p-4 text-[10px] font-black uppercase text-zinc-400 tracking-widest">#</th>
+                                                <th className="text-left p-4 text-[10px] font-black uppercase text-zinc-400 tracking-widest">Member</th>
+                                                <th className="text-right p-4 text-[10px] font-black uppercase text-zinc-400 tracking-widest">Points</th>
+                                                <th className="text-right p-4 text-[10px] font-black uppercase text-zinc-400 tracking-widest">Joined</th>
+                                                <th className="text-right p-4 text-[10px] font-black uppercase text-zinc-400 tracking-widest">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-zinc-50">
+                                            {rosterMembers
+                                                .sort((a, b) => b.total_points - a.total_points)
+                                                .map((member, idx) => (
+                                                    <tr key={member.membership_id} className="hover:bg-zinc-50/50 transition-colors">
+                                                        <td className="p-4">
+                                                            {idx === 0 ? (
+                                                                <Trophy className="h-5 w-5 text-yellow-500" />
+                                                            ) : (
+                                                                <span className="text-sm font-bold text-zinc-400">{idx + 1}</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-9 w-9 rounded-xl bg-zinc-100 flex items-center justify-center">
+                                                                    <span className="text-xs font-black text-zinc-500">
+                                                                        {member.display_name?.[0] || 'U'}
+                                                                    </span>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-sm text-zinc-900">{member.full_name}</p>
+                                                                    {member.display_name !== member.full_name && (
+                                                                        <p className="text-[10px] text-zinc-400 font-medium">{member.display_name}</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <span className="font-black text-[#FF5E00]">{member.total_points}</span>
+                                                            <span className="text-[9px] text-zinc-400 ml-1">PTS</span>
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <span className="text-xs text-zinc-400 font-medium">
+                                                                {new Date(member.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <button
+                                                                onClick={() => removeMember(member.membership_id, member.user_id, member.full_name)}
+                                                                className="h-8 w-8 rounded-lg bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center"
+                                                                title="Remove member"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ─── ACTIVITIES TAB ─── */}
+                    {squadSubTab === 'activities' && (
+                        <ActivityConfiguration squadId={selectedSquad.id} squadName={selectedSquad.name} />
+                    )}
+
+                    {/* ─── GOALS TAB ─── */}
+                    {squadSubTab === 'goals' && (
+                        <MemberGoalAssignment squadId={selectedSquad.id} squadName={selectedSquad.name} />
+                    )}
+
+                    {/* ─── PENDING TAB ─── */}
+                    {squadSubTab === 'pending' && (
+                        <div className="premium-card rounded-[2.5rem] p-8">
+                            <h3 className="text-xl font-black italic uppercase tracking-tight text-zinc-900 mb-6 flex items-center gap-3">
+                                <UserPlus className="h-5 w-5 text-emerald-500" />
+                                Pending Approvals
+                            </h3>
+
+                            {squadPending.length === 0 ? (
+                                <div className="text-center py-12 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+                                    <Lock className="h-12 w-12 text-zinc-200 mx-auto mb-4" />
+                                    <p className="text-zinc-300 font-black uppercase tracking-[0.3em] text-[10px]">No pending requests</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {squadPending.map((member) => (
+                                        <div key={member.id} className="flex items-center justify-between p-6 rounded-2xl bg-zinc-50 border border-zinc-100 hover:border-zinc-200 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-12 w-12 rounded-xl bg-white border border-zinc-100 flex items-center justify-center text-emerald-500 shadow-sm">
+                                                    <UserPlus className="h-6 w-6" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-black italic uppercase font-heading text-zinc-900">
+                                                        {member.profiles.first_name} {member.profiles.last_name || ''}
+                                                    </h4>
+                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                                                        Applied {new Date(member.created_at).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => moderateMember(member.id, true)}
+                                                    className="h-12 w-12 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center border border-emerald-100"
+                                                >
+                                                    <Check className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => moderateMember(member.id, false)}
+                                                    className="h-12 w-12 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100"
+                                                >
+                                                    <X className="h-5 w-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // ─── SQUAD LIST VIEW ──────────────────────────────────
     return (
         <div className="space-y-12">
             {/* Groups Grid */}
@@ -183,9 +453,9 @@ export default function GroupManager() {
                         </div>
                         <div>
                             <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
-                                SQUAD <span className="text-[#FF5E00]">REGISTRY</span>
+                                SQUAD <span className="text-[#FF5E00]">COMMAND</span>
                             </h2>
-                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Unit Identification & Access Control</p>
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Select a squad to manage roster, activities & goals</p>
                         </div>
                     </div>
                     <button
@@ -209,10 +479,7 @@ export default function GroupManager() {
                             onChange={(e) => setNewGroupName(e.target.value)}
                             className="flex-1 bg-white border border-zinc-100 rounded-[1.25rem] px-8 py-4 text-zinc-900 font-black focus:outline-none focus:border-[#FF5E00]/30 focus:ring-8 focus:ring-[#FF5E00]/5 transition-all shadow-sm uppercase tracking-widest text-xs"
                         />
-                        <button
-                            type="submit"
-                            className="bg-zinc-900 text-white font-black italic px-10 py-4 rounded-[1.25rem] hover:bg-black transition-all hover:scale-[1.02] active:scale-[0.98] font-heading"
-                        >
+                        <button type="submit" className="bg-zinc-900 text-white font-black italic px-10 py-4 rounded-[1.25rem] hover:bg-black transition-all hover:scale-[1.02] active:scale-[0.98] font-heading">
                             CREATE
                         </button>
                     </form>
@@ -220,183 +487,100 @@ export default function GroupManager() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {groups.map((group) => (
-                        <div key={group.id} className="bg-zinc-50/50 p-8 rounded-[2.5rem] border border-zinc-100 hover:border-[#FF5E00]/30 hover:shadow-xl hover:shadow-zinc-100 transition-all duration-500 space-y-6 group/card">
+                        <button
+                            key={group.id}
+                            onClick={() => openSquadDetail(group)}
+                            className="text-left bg-zinc-50/50 p-8 rounded-[2.5rem] border border-zinc-100 hover:border-[#FF5E00]/30 hover:shadow-xl hover:shadow-zinc-100 transition-all duration-500 space-y-6 group/card"
+                        >
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-black text-zinc-900 italic tracking-tight uppercase font-heading group-hover/card:text-[#FF5E00] transition-colors">{group.name}</h3>
-                                <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-[#FF5E00] shadow-sm border border-zinc-100 group-hover/card:scale-110 transition-transform">
-                                    <Shield className="h-5 w-5" />
-                                </div>
+                                <ChevronRight className="h-5 w-5 text-zinc-300 group-hover/card:text-[#FF5E00] group-hover/card:translate-x-1 transition-all" />
                             </div>
 
-                            <div className="flex items-center justify-between p-5 rounded-2xl bg-white border border-zinc-100 shadow-sm group-hover/card:border-[#FF5E00]/20 transition-all">
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-white border border-zinc-100 shadow-sm">
                                 <div className="flex flex-col">
                                     <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">ACCESS TOKEN</span>
                                     <span className="text-lg font-black text-[#FF5E00] font-mono tracking-[0.2em]">{group.code}</span>
                                 </div>
-                                <button
-                                    onClick={() => {
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
                                         navigator.clipboard.writeText(group.code);
-                                        // Simplified alert or toast would be better but keeping consistency
                                     }}
-                                    className="h-10 w-10 flex items-center justify-center text-zinc-300 hover:text-zinc-900 bg-zinc-50 rounded-xl transition-colors hover:bg-zinc-100"
+                                    className="h-10 w-10 flex items-center justify-center text-zinc-300 hover:text-zinc-900 bg-zinc-50 rounded-xl transition-colors hover:bg-zinc-100 cursor-pointer"
                                 >
                                     <Clipboard className="h-4 w-4" />
-                                </button>
+                                </div>
                             </div>
 
-                            {/* Programme Dates */}
-                            {editingDates === group.id ? (
-                                <div className="space-y-3 p-4 bg-white rounded-xl border border-zinc-200">
-                                    <div>
-                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Start Date</label>
-                                        <input
-                                            type="date"
-                                            value={tempDates.start}
-                                            onChange={(e) => setTempDates({ ...tempDates, start: e.target.value })}
-                                            className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm font-medium"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1">End Date (56 days)</label>
-                                        <input
-                                            type="date"
-                                            value={tempDates.end}
-                                            onChange={(e) => setTempDates({ ...tempDates, end: e.target.value })}
-                                            className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm font-medium"
-                                        />
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={async () => {
-                                                const { error } = await supabase
-                                                    .from('groups')
-                                                    .update({
-                                                        start_date: tempDates.start || null,
-                                                        end_date: tempDates.end || null
-                                                    })
-                                                    .eq('id', group.id);
-                                                if (!error) {
-                                                    setEditingDates(null);
-                                                    fetchGroups();
-                                                }
-                                            }}
-                                            className="flex-1 px-3 py-2 rounded-lg bg-emerald-500 text-white font-bold text-xs uppercase hover:bg-emerald-600 transition-all"
-                                        >
-                                            Save
-                                        </button>
-                                        <button
-                                            onClick={() => setEditingDates(null)}
-                                            className="px-3 py-2 rounded-lg bg-zinc-100 text-zinc-600 font-bold text-xs uppercase hover:bg-zinc-200 transition-all"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-zinc-100">
+                                    <Users className="h-3.5 w-3.5 text-zinc-400" />
+                                    <span className="text-xs font-bold text-zinc-600">{group.member_count} members</span>
                                 </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="text-zinc-400 font-bold uppercase">Programme:</span>
-                                        <button
-                                            onClick={() => {
-                                                setEditingDates(group.id);
-                                                setTempDates({
-                                                    start: group.start_date || '',
-                                                    end: group.end_date || ''
-                                                });
-                                            }}
-                                            className="text-blue-600 hover:text-blue-700 font-bold uppercase"
-                                        >
-                                            {group.start_date ? 'Edit' : 'Set Dates'}
-                                        </button>
-                                    </div>
-                                    {group.start_date && (
-                                        <div className="text-xs">
-                                            <div className="flex justify-between">
-                                                <span className="text-zinc-500">Start:</span>
-                                                <span className="font-mono font-bold">{new Date(group.start_date).toLocaleDateString()}</span>
-                                            </div>
-                                            {group.end_date && (
-                                                <div className="flex justify-between">
-                                                    <span className="text-zinc-500">End:</span>
-                                                    <span className="font-mono font-bold">{new Date(group.end_date).toLocaleDateString()}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="flex items-center justify-end mt-4">
                                 {group.pending_count! > 0 && (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FF5E00]/10 border border-[#FF5E00]/20 shadow-sm animate-pulse">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FF5E00]/10 border border-[#FF5E00]/20 animate-pulse">
                                         <div className="h-1.5 w-1.5 rounded-full bg-[#FF5E00]" />
-                                        <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest">{group.pending_count} PENDING</span>
+                                        <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest">{group.pending_count} pending</span>
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             </section>
 
-            {/* Approval Queue */}
-            <section className="premium-card rounded-[3.5rem] p-12 relative overflow-hidden group">
-                <div className="flex items-center gap-5 mb-10">
-                    <div className="h-14 w-14 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100 shadow-sm">
-                        <UserPlus className="h-7 w-7 text-emerald-500" />
+            {/* Global Approval Queue (for pending from ALL squads) */}
+            {pendingMembers.length > 0 && (
+                <section className="premium-card rounded-[3.5rem] p-12 relative overflow-hidden">
+                    <div className="flex items-center gap-5 mb-10">
+                        <div className="h-14 w-14 bg-zinc-50 rounded-2xl flex items-center justify-center border border-zinc-100 shadow-sm">
+                            <UserPlus className="h-7 w-7 text-emerald-500" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
+                                APPROVAL <span className="text-emerald-500">QUEUE</span>
+                            </h2>
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">{pendingMembers.length} waiting across all squads</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-3xl font-black text-zinc-900 italic tracking-tighter uppercase font-heading leading-none mb-1">
-                            APPROVAL <span className="text-emerald-500">QUEUE</span>
-                        </h2>
-                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Waiting for Approval</p>
-                    </div>
-                </div>
 
-                {pendingMembers.length === 0 ? (
-                    <div className="text-center py-20 bg-zinc-50/50 rounded-[3rem] border border-dashed border-zinc-200">
-                        <Lock className="h-12 w-12 text-zinc-200 mx-auto mb-6" />
-                        <h3 className="text-zinc-300 font-black uppercase tracking-[0.5em] text-[10px]">Queue Status: All Synchronized</h3>
-                    </div>
-                ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         {pendingMembers.map((member) => (
-                            <div key={member.id} className="flex flex-col md:flex-row md:items-center justify-between p-8 rounded-[2.5rem] bg-zinc-50/50 border border-zinc-100 hover:border-zinc-200 transition-all group/item">
-                                <div className="flex items-center gap-6">
-                                    <div className="h-16 w-16 rounded-2xl bg-white border border-zinc-100 flex items-center justify-center text-emerald-500 shadow-sm group-hover/item:scale-110 transition-transform">
-                                        <UserPlus className="h-8 w-8" />
+                            <div key={member.id} className="flex flex-col md:flex-row md:items-center justify-between p-6 rounded-[2rem] bg-zinc-50/50 border border-zinc-100 hover:border-zinc-200 transition-all">
+                                <div className="flex items-center gap-5">
+                                    <div className="h-14 w-14 rounded-xl bg-white border border-zinc-100 flex items-center justify-center text-emerald-500 shadow-sm">
+                                        <UserPlus className="h-7 w-7" />
                                     </div>
                                     <div>
-                                        <h4 className="text-2xl font-black italic uppercase font-heading leading-none text-zinc-900 mb-2">
+                                        <h4 className="text-xl font-black italic uppercase font-heading text-zinc-900">
                                             {member.profiles.first_name} {member.profiles.last_name || ''}
                                         </h4>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">WANTS TO JOIN </span>
+                                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Wants to join </span>
                                             <span className="text-[10px] font-black text-[#FF5E00] uppercase tracking-widest bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">{member.groups.name}</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4 mt-6 md:mt-0">
+                                <div className="flex items-center gap-3 mt-4 md:mt-0">
                                     <button
                                         onClick={() => moderateMember(member.id, true)}
-                                        className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-sm border border-emerald-100"
+                                        className="h-14 w-14 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center border border-emerald-100"
                                     >
-                                        <Check className="h-7 w-7" />
+                                        <Check className="h-6 w-6" />
                                     </button>
                                     <button
                                         onClick={() => moderateMember(member.id, false)}
-                                        className="h-16 w-16 bg-red-50 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-sm border border-red-100"
+                                        className="h-14 w-14 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100"
                                     >
-                                        <X className="h-7 w-7" />
+                                        <X className="h-6 w-6" />
                                     </button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                )}
-            </section>
-
-
+                </section>
+            )}
         </div>
     );
 }

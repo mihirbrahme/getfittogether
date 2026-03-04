@@ -76,6 +76,9 @@ export default function ProgramManager() {
     const [streaks, setStreaks] = useState<StreakConfig[]>(defaultStreaks);
     const [saving, setSaving] = useState(false);
 
+    // Edit state
+    const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+
     // Action State
     const [activatingId, setActivatingId] = useState<string | null>(null);
     const [activateModalProg, setActivateModalProg] = useState<string | null>(null);
@@ -114,7 +117,63 @@ export default function ProgramManager() {
         setSquadDates(initialSquadDates);
         setMetrics(defaultMetrics);
         setStreaks(defaultStreaks);
+        setEditingProgramId(null);
         setView('create');
+    };
+
+    const handleEdit = async (programId: string) => {
+        setEditingProgramId(programId);
+        setSaving(false);
+
+        // Fetch program data
+        const { data: prog } = await supabase.from('programs').select('*').eq('id', programId).single();
+        if (!prog) return alert('Program not found');
+
+        setFormData({
+            name: prog.name,
+            description: prog.description || '',
+            start_date: prog.start_date,
+            end_date: prog.end_date,
+            status: prog.status,
+            max_daily_points: prog.max_daily_points || 70
+        });
+
+        // Fetch squad date overrides
+        const { data: overrides } = await supabase.from('program_squad_dates').select('*').eq('program_id', programId);
+        const sdMap: Record<string, ProgramSquadDate> = {};
+        squads.forEach(s => { sdMap[s.id] = { squad_id: s.id, start_date: '', end_date: '' }; });
+        overrides?.forEach(o => { sdMap[o.squad_id] = { squad_id: o.squad_id, start_date: o.start_date, end_date: o.end_date }; });
+        setSquadDates(sdMap);
+
+        // Fetch metrics
+        const { data: metricsData } = await supabase.from('program_metrics').select('*').eq('program_id', programId).order('display_order');
+        if (metricsData && metricsData.length > 0) {
+            setMetrics(metricsData.map(m => ({
+                id: m.id,
+                metric_name: m.metric_name,
+                metric_key: m.metric_key,
+                metric_type: m.metric_type,
+                points: m.points,
+                description: m.description || ''
+            })));
+        } else {
+            setMetrics(defaultMetrics);
+        }
+
+        // Fetch streaks
+        const { data: streaksData } = await supabase.from('program_streak_config').select('*').eq('program_id', programId);
+        if (streaksData && streaksData.length > 0) {
+            setStreaks(streaksData.map(s => ({
+                id: s.id,
+                streak_type: s.streak_type,
+                days_required: s.days_required,
+                bonus_points: s.bonus_points
+            })));
+        } else {
+            setStreaks(defaultStreaks);
+        }
+
+        setView('edit');
     };
 
     const handleSave = async () => {
@@ -122,32 +181,51 @@ export default function ProgramManager() {
 
         setSaving(true);
         try {
-            // 1. Save Program
-            const { data: prog, error } = await supabase.from('programs').insert([{
-                name: formData.name,
-                description: formData.description,
-                start_date: formData.start_date,
-                end_date: formData.end_date,
-                status: 'draft',
-                max_daily_points: formData.max_daily_points
-            }]).select('id').single();
+            let programId: string;
 
-            if (error) throw error;
+            if (editingProgramId) {
+                // UPDATE existing program
+                const { error } = await supabase.from('programs').update({
+                    name: formData.name,
+                    description: formData.description,
+                    start_date: formData.start_date,
+                    end_date: formData.end_date,
+                    max_daily_points: formData.max_daily_points
+                }).eq('id', editingProgramId);
+                if (error) throw error;
+                programId = editingProgramId;
 
-            // 2. Save Squad Date Overrides (only if filled out)
+                // Delete old related data and re-insert
+                await supabase.from('program_squad_dates').delete().eq('program_id', programId);
+                await supabase.from('program_metrics').delete().eq('program_id', programId);
+                await supabase.from('program_streak_config').delete().eq('program_id', programId);
+            } else {
+                // INSERT new program
+                const { data: prog, error } = await supabase.from('programs').insert([{
+                    name: formData.name,
+                    description: formData.description,
+                    start_date: formData.start_date,
+                    end_date: formData.end_date,
+                    status: 'draft',
+                    max_daily_points: formData.max_daily_points
+                }]).select('id').single();
+                if (error) throw error;
+                programId = prog.id;
+            }
+
+            // Save Squad Date Overrides
             const overridesToSave = Object.values(squadDates).filter(sd => sd.start_date && sd.end_date).map(sd => ({
-                program_id: prog.id,
+                program_id: programId,
                 ...sd
             }));
-
             if (overridesToSave.length > 0) {
                 await supabase.from('program_squad_dates').insert(overridesToSave);
             }
 
-            // 3. Save Metrics
+            // Save Metrics
             if (metrics.length > 0) {
                 const metricsToInsert = metrics.map((m, i) => ({
-                    program_id: prog.id,
+                    program_id: programId,
                     metric_name: m.metric_name,
                     metric_key: m.metric_key,
                     metric_type: m.metric_type,
@@ -159,10 +237,10 @@ export default function ProgramManager() {
                 await supabase.from('program_metrics').insert(metricsToInsert);
             }
 
-            // 4. Save Streaks
+            // Save Streaks
             if (streaks.length > 0) {
                 const streaksToInsert = streaks.map(s => ({
-                    program_id: prog.id,
+                    program_id: programId,
                     streak_type: s.streak_type,
                     days_required: s.days_required,
                     bonus_points: s.bonus_points
@@ -278,15 +356,28 @@ export default function ProgramManager() {
                                             {activatingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3 w-3" />}
                                             Activate
                                         </button>
-                                        <button className="p-2 border border-zinc-200 rounded-lg text-zinc-600 hover:bg-zinc-50 transition-colors">
+                                        <button
+                                            onClick={() => handleEdit(p.id)}
+                                            className="p-2 border border-zinc-200 rounded-lg text-zinc-600 hover:bg-zinc-50 transition-colors"
+                                            title="Edit program"
+                                        >
                                             <Settings className="h-4 w-4" />
                                         </button>
                                     </>
                                 )}
                                 {p.status === 'active' && (
-                                    <button className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-lg text-xs font-bold uppercase border border-emerald-200 flex justify-center items-center gap-2 cursor-default">
-                                        <CheckCircle className="h-3 w-3" /> Currently Active
-                                    </button>
+                                    <>
+                                        <button className="flex-1 bg-emerald-50 text-emerald-700 py-2 rounded-lg text-xs font-bold uppercase border border-emerald-200 flex justify-center items-center gap-2 cursor-default">
+                                            <CheckCircle className="h-3 w-3" /> Active
+                                        </button>
+                                        <button
+                                            onClick={() => handleEdit(p.id)}
+                                            className="p-2 border border-emerald-200 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                            title="Edit program"
+                                        >
+                                            <Settings className="h-4 w-4" />
+                                        </button>
+                                    </>
                                 )}
                                 {p.status === 'completed' && (
                                     <button className="flex-1 bg-zinc-50 text-zinc-500 py-2 rounded-lg text-xs font-bold uppercase border border-zinc-200 flex justify-center items-center gap-2 cursor-default">
@@ -356,14 +447,18 @@ export default function ProgramManager() {
         </div>
     );
 
-    const renderCreate = () => (
+    const renderForm = () => (
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-8 duration-500 pb-20">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-2xl font-black italic uppercase tracking-tight text-zinc-900">Create Program</h3>
-                    <p className="text-sm text-zinc-500 font-medium">Define timeline, metrics, and squad overrrides.</p>
+                    <h3 className="text-2xl font-black italic uppercase tracking-tight text-zinc-900">
+                        {editingProgramId ? 'Edit Program' : 'Create Program'}
+                    </h3>
+                    <p className="text-sm text-zinc-500 font-medium">
+                        {editingProgramId ? 'Modify timeline, metrics, and configuration.' : 'Define timeline, metrics, and squad overrides.'}
+                    </p>
                 </div>
-                <button onClick={() => setView('list')} className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors">
+                <button onClick={() => { setView('list'); setEditingProgramId(null); }} className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors">
                     <X className="h-6 w-6" />
                 </button>
             </div>
@@ -488,7 +583,7 @@ export default function ProgramManager() {
                         disabled={saving}
                         className="bg-[#FF5E00] text-white px-8 py-3 rounded-xl font-black uppercase tracking-wider text-xs flex items-center gap-2 hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50"
                     >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Create Draft
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {editingProgramId ? 'Save Changes' : 'Create Draft'}
                     </button>
                 </div>
             </div>
@@ -497,7 +592,7 @@ export default function ProgramManager() {
 
     return (
         <div>
-            {view === 'list' ? renderList() : renderCreate()}
+            {view === 'list' ? renderList() : renderForm()}
         </div>
     );
 }
