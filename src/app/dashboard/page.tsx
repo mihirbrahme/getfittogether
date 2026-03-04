@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Check, Activity, Sparkles } from 'lucide-react';
+import { Check, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInDays, subDays, formatShortWeekday } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
@@ -34,9 +34,6 @@ export default function Dashboard() {
     const [lastBiometricDate, setLastBiometricDate] = useState<string | null>(null);
     const [showProgressPrompt, setShowProgressPrompt] = useState(true);
     const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
-    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-    const [programName, setProgramName] = useState('New Program');
-    const [totalProgramDays, setTotalProgramDays] = useState(TOTAL_DAYS);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -85,7 +82,6 @@ export default function Dashboard() {
                         .single();
 
                     if (program) {
-                        setProgramName(program.name);
                         programStart = new Date(program.start_date);
                         programEnd = new Date(program.end_date);
 
@@ -108,20 +104,10 @@ export default function Dashboard() {
 
                         if (programStart && programEnd) {
                             tDays = differenceInDays(programEnd, programStart) + 1;
-                            setTotalProgramDays(tDays);
                         }
                     }
 
-                    // Check if Welcome Modal is needed
-                    const { count: programLogsCount } = await supabase
-                        .from('daily_logs')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('user_id', user.id)
-                        .eq('program_id', programId);
 
-                    if (programLogsCount === 0) {
-                        setShowWelcomeModal(true);
-                    }
 
                     // Trigger auto-streak calculation
                     if (!profile.last_streak_calculation || new Date(profile.last_streak_calculation) < new Date(todayStr)) {
@@ -370,38 +356,6 @@ export default function Dashboard() {
                     <p className="text-orange-100 text-sm font-medium">Log your daily progress including WOD, habits, and goals.</p>
                 </div>
             </div>
-
-            {/* Welcome to New Program Modal */}
-            {showWelcomeModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowWelcomeModal(false)} />
-                    <div className="relative z-10 bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2.5rem] p-8 text-center shadow-2xl animate-scale-in-bounce border border-orange-500/20">
-                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-orange-500/10 to-transparent pointer-events-none rounded-t-[2.5rem]" />
-
-                        <div className="relative h-20 w-20 mx-auto mb-6">
-                            <div className="absolute inset-0 bg-orange-500/20 rounded-full animate-ping" />
-                            <div className="relative h-full w-full bg-gradient-to-br from-[#FF5E00] to-orange-600 rounded-full flex items-center justify-center shadow-xl shadow-orange-500/40">
-                                <Sparkles className="h-10 w-10 text-white" />
-                            </div>
-                        </div>
-
-                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-zinc-100 mb-3">
-                            Welcome to <br /><span className="text-[#FF5E00]">{programName}</span>!
-                        </h2>
-
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium mb-8 leading-relaxed">
-                            Your new program has officially started. Consistency is key—log your activities daily and let's crush those goals. All the best!
-                        </p>
-
-                        <button
-                            onClick={() => setShowWelcomeModal(false)}
-                            className="w-full py-4 bg-[#FF5E00] hover:bg-orange-600 text-white font-black uppercase tracking-wider text-sm rounded-2xl transition-all press-effect shadow-lg shadow-orange-500/30"
-                        >
-                            Let's Get Started
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
