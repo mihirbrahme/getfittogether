@@ -136,9 +136,22 @@ export default function GroupManager() {
                 .update({ status: 'approved' })
                 .eq('id', memberId);
 
+            // Reset points/streaks on approval so they start fresh with the current program
+            // This prevents issues where a user was pending during program activation
             const { error: profileError } = await supabase
                 .from('profiles')
-                .update({ status: 'approved' })
+                .update({
+                    status: 'approved',
+                    total_points: 0,
+                    streak_bonus_points: 0,
+                    current_checkin_streak: 0,
+                    current_workout_streak: 0,
+                    current_clean_streak: 0,
+                    longest_checkin_streak: 0,
+                    longest_workout_streak: 0,
+                    longest_clean_streak: 0,
+                    last_streak_calculation: null
+                })
                 .eq('id', memberData.user_id);
 
             if (!memberError && !profileError) {
