@@ -12,7 +12,6 @@ import WODPreview from '@/components/WODPreview';
 import AnimatedNumber from '@/components/AnimatedNumber';
 import ProgressRing from '@/components/ProgressRing';
 import PhaseBanner from '@/components/PhaseBanner';
-import ProgressPrompt from '@/components/ProgressPrompt';
 import InstallAppPrompt from '@/components/InstallAppPrompt';
 
 const TOTAL_DAYS = 70;
@@ -31,9 +30,11 @@ export default function Dashboard() {
     const [totalPoints, setTotalPoints] = useState(0);
     const [todayPoints, setTodayPoints] = useState(0);
     const [todayCompletion, setTodayCompletion] = useState(0);
-    const [lastBiometricDate, setLastBiometricDate] = useState<string | null>(null);
-    const [showProgressPrompt, setShowProgressPrompt] = useState(true);
     const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
+    const [programName, setProgramName] = useState<string | null>(null);
+    const [programStartDate, setProgramStartDate] = useState<string | null>(null);
+    const [programEndDate, setProgramEndDate] = useState<string | null>(null);
+    const [programTotalDays, setProgramTotalDays] = useState(TOTAL_DAYS);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -84,6 +85,9 @@ export default function Dashboard() {
                     if (program) {
                         programStart = new Date(program.start_date);
                         programEnd = new Date(program.end_date);
+                        setProgramName(program.name);
+                        setProgramStartDate(program.start_date);
+                        setProgramEndDate(program.end_date);
 
                         // Override with squad specific date if exists
                         // @ts-ignore
@@ -99,11 +103,14 @@ export default function Dashboard() {
                             if (squadOverride) {
                                 programStart = new Date(squadOverride.start_date);
                                 programEnd = new Date(squadOverride.end_date);
+                                setProgramStartDate(squadOverride.start_date);
+                                setProgramEndDate(squadOverride.end_date);
                             }
                         }
 
                         if (programStart && programEnd) {
                             tDays = differenceInDays(programEnd, programStart) + 1;
+                            setProgramTotalDays(tDays);
                         }
                     }
 
@@ -142,6 +149,7 @@ export default function Dashboard() {
                     const dayNum = Math.max(1, diff + 1);
                     setCurrentDay(dayNum);
                     setDaysRemaining(Math.max(0, tDays - dayNum));
+                    setProgramTotalDays(tDays);
                 }
             }
 
@@ -151,13 +159,17 @@ export default function Dashboard() {
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             });
 
-            // Fetch logs. If we have an active program, filter by it (or null for legacy migration transition).
+            // Fetch logs. If we have an active program, filter by it.
             let logsQuery = supabase
                 .from('daily_logs')
                 .select('date, daily_points')
                 .eq('user_id', user.id)
                 .order('date', { ascending: false })
                 .limit(30);
+
+            if (activeProgramId) {
+                logsQuery = logsQuery.eq('program_id', activeProgramId);
+            }
 
             const { data: logs } = await logsQuery;
 
@@ -189,18 +201,7 @@ export default function Dashboard() {
                 setTodayCompletion(Math.round(((todayLog.daily_points || 0) / MAX_DAILY_POINTS) * 100));
             }
 
-            // Fetch last biometric entry for progress prompts
-            const { data: lastBiometric } = await supabase
-                .from('biometric_logs')
-                .select('created_at')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (lastBiometric) {
-                setLastBiometricDate(lastBiometric.created_at);
-            }
+            // Biometric fetch removed - measurement reminder banner disabled
 
             setLoading(false);
         };
@@ -250,17 +251,13 @@ export default function Dashboard() {
             </div>
 
             {/* Phase Banner */}
-            <PhaseBanner currentDay={currentDay} />
-
-            {/* Progress Prompt (shows every 14 days) */}
-            {showProgressPrompt && (
-                <ProgressPrompt
-                    currentDay={currentDay}
-                    lastBiometricDate={lastBiometricDate}
-                    onDismiss={() => setShowProgressPrompt(false)}
-                    onLogProgress={() => router.push('/dashboard/progress')}
-                />
-            )}
+            <PhaseBanner
+                currentDay={currentDay}
+                totalDays={programTotalDays}
+                programName={programName || undefined}
+                programStartDate={programStartDate || undefined}
+                programEndDate={programEndDate || undefined}
+            />
 
             {/* Today's Progress Ring + Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">

@@ -1,7 +1,8 @@
 'use client';
 
-import { Flame, Zap, Target, Trophy } from 'lucide-react';
+import { Flame, Zap, Target, Trophy, Calendar, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate, parseLocalDate } from '@/lib/dateUtils';
 
 interface PhaseInfo {
     number: number;
@@ -62,9 +63,19 @@ interface PhaseBannerProps {
     currentDay: number;
     totalDays?: number;
     className?: string;
+    programName?: string;
+    programStartDate?: string; // YYYY-MM-DD
+    programEndDate?: string;   // YYYY-MM-DD
 }
 
-export default function PhaseBanner({ currentDay, totalDays = 70, className }: PhaseBannerProps) {
+export default function PhaseBanner({
+    currentDay,
+    totalDays = 70,
+    className,
+    programName,
+    programStartDate,
+    programEndDate
+}: PhaseBannerProps) {
     const phase = getPhase(currentDay, totalDays);
     const PhaseIcon = phase.icon;
 
@@ -84,45 +95,103 @@ export default function PhaseBanner({ currentDay, totalDays = 70, className }: P
     const progressInPhase = Math.max(0, currentDay - phaseStart);
     const phaseProgress = Math.min(100, Math.round((progressInPhase / phaseLength) * 100));
 
+    const daysRemaining = Math.max(0, totalDays - currentDay);
+
+    // Format program dates for display
+    const formattedStart = programStartDate
+        ? formatDate(parseLocalDate(programStartDate), 'short')
+        : null;
+    const formattedEnd = programEndDate
+        ? formatDate(parseLocalDate(programEndDate), 'short')
+        : null;
+
     return (
-        <div className={cn(
-            "relative overflow-hidden rounded-2xl p-5",
-            className
-        )}>
-            <div className={cn(
-                "absolute inset-0 bg-gradient-to-r opacity-90",
-                phase.color
-            )} />
-            <div className="absolute inset-0 bg-black/10" />
+        <div className={cn("space-y-3", className)}>
+            {/* Program Info Card */}
+            {programName && (
+                <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-800 dark:to-zinc-900">
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-[#FF5E00]/10 rounded-full blur-[60px] -translate-y-1/2 translate-x-1/2" />
 
-            <div className="relative z-10 flex items-center gap-4">
-                <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <PhaseIcon className="h-6 w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white/70 text-[10px] font-black uppercase tracking-widest">
-                            Phase {phase.number}
-                        </span>
-                        <span className="text-white/50 text-[10px]">•</span>
-                        <span className="text-white/70 text-[10px] font-bold">{phase.dayRange}</span>
+                    <div className="relative z-10">
+                        <h3 className="text-white font-black text-lg uppercase tracking-tight mb-3">
+                            {programName}
+                        </h3>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            {formattedStart && formattedEnd && (
+                                <div className="flex items-center gap-1.5">
+                                    <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                                    <span className="text-zinc-400 text-xs font-bold">
+                                        {formattedStart} → {formattedEnd}
+                                    </span>
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5">
+                                <div className="h-2 w-2 rounded-full bg-[#FF5E00] animate-pulse" />
+                                <span className="text-[#FF5E00] text-xs font-black uppercase">
+                                    Day {currentDay} of {totalDays}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                                <Clock className="h-3.5 w-3.5 text-zinc-400" />
+                                <span className="text-zinc-400 text-xs font-bold">
+                                    {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} to go
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Overall program progress bar */}
+                        <div className="mt-3">
+                            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-[#FF5E00] rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.min(100, Math.round((currentDay / totalDays) * 100))}%` }}
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <h3 className="text-white font-black text-lg uppercase tracking-tight">{phase.name}</h3>
-                    <p className="text-white/80 text-xs mt-0.5">{phase.subtitle}</p>
                 </div>
-                <div className="text-right">
-                    <span className="text-white text-2xl font-black">{phaseProgress}%</span>
-                    <p className="text-white/70 text-[9px] uppercase font-bold">Complete</p>
-                </div>
-            </div>
+            )}
 
-            {/* Phase Progress Bar */}
-            <div className="relative z-10 mt-4">
-                <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-white rounded-full transition-all duration-500"
-                        style={{ width: `${phaseProgress}%` }}
-                    />
+            {/* Phase Progress Card */}
+            <div className="relative overflow-hidden rounded-2xl p-5">
+                <div className={cn(
+                    "absolute inset-0 bg-gradient-to-r opacity-90",
+                    phase.color
+                )} />
+                <div className="absolute inset-0 bg-black/10" />
+
+                <div className="relative z-10 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                        <PhaseIcon className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="text-white/70 text-[10px] font-black uppercase tracking-widest">
+                                Phase {phase.number}
+                            </span>
+                            <span className="text-white/50 text-[10px]">•</span>
+                            <span className="text-white/70 text-[10px] font-bold">{phase.dayRange}</span>
+                        </div>
+                        <h3 className="text-white font-black text-lg uppercase tracking-tight">{phase.name}</h3>
+                        <p className="text-white/80 text-xs mt-0.5">{phase.subtitle}</p>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-white text-2xl font-black">{phaseProgress}%</span>
+                        <p className="text-white/70 text-[9px] uppercase font-bold">Complete</p>
+                    </div>
+                </div>
+
+                {/* Phase Progress Bar */}
+                <div className="relative z-10 mt-4">
+                    <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-white rounded-full transition-all duration-500"
+                            style={{ width: `${phaseProgress}%` }}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

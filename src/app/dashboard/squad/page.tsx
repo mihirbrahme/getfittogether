@@ -47,7 +47,8 @@ export default function SquadPage() {
                             total_points
                         )
                     `)
-                    .eq('group_id', membership.group_id);
+                    .eq('group_id', membership.group_id)
+                    .eq('status', 'approved');
 
                 if (squadMembers) {
                     // flatten and sort

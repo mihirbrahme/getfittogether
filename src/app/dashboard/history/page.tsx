@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Calendar, TrendingUp, Users, History as HistoryIcon, CheckCircle, X } from 'lucide-react';
-import { formatDate, formatRelative } from '@/lib/dateUtils';
+import { formatDate, formatRelative, parseLocalDate } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 
 interface CheckInLog {
@@ -39,14 +39,22 @@ export default function HistoryPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Fetch personal history
-        const { data: personalLogs } = await supabase
+        // Fetch active program ID
+        const { data: activeProgramId } = await supabase.rpc('get_active_program');
+
+        // Build personal history query — scoped to active program
+        let personalQuery = supabase
             .from('daily_logs')
             .select('id, date, daily_points, custom_logs')
             .eq('user_id', user.id)
             .order('date', { ascending: false })
             .limit(30);
 
+        if (activeProgramId) {
+            personalQuery = personalQuery.eq('program_id', activeProgramId);
+        }
+
+        const { data: personalLogs } = await personalQuery;
         setMyHistory(personalLogs || []);
 
         // Get user's squad members
@@ -97,8 +105,8 @@ export default function HistoryPage() {
             if (squadMembers) {
                 const memberIds = squadMembers.map(m => m.user_id);
 
-                // Fetch squad history
-                const { data: squadLogs } = await supabase
+                // Build squad history query — scoped to active program
+                let squadQuery = supabase
                     .from('daily_logs')
                     .select(`
                         id,
@@ -110,6 +118,11 @@ export default function HistoryPage() {
                     .order('date', { ascending: false })
                     .limit(50);
 
+                if (activeProgramId) {
+                    squadQuery = squadQuery.eq('program_id', activeProgramId);
+                }
+
+                const { data: squadLogs } = await squadQuery;
                 setSquadHistory(squadLogs as any || []);
             }
         }

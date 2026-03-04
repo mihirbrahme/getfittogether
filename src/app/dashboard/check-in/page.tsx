@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Calendar, MessageSquare } from 'lucide-react';
+import { Loader2, Check, X, Target, Activity, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Calendar, MessageSquare, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getToday, formatDate, parseLocalDate } from '@/lib/dateUtils';
+import { getToday, formatDate, parseLocalDate, differenceInDays } from '@/lib/dateUtils';
 import DateDisplay from '@/components/DateDisplay';
 import { logCheckIn } from '@/lib/auditLog';
 import Confetti from '@/components/Confetti';
@@ -56,19 +56,99 @@ export default function CheckInPage() {
     const [selectedDate, setSelectedDate] = useState(getToday());
     const [availableDates, setAvailableDates] = useState<{ date: string; label: string; dayName: string }[]>([]);
 
-    // Initialize available dates (today, yesterday, 2 days ago)
+    // Program context
+    const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
+    const [programName, setProgramName] = useState<string | null>(null);
+    const [programStartDate, setProgramStartDate] = useState<string | null>(null);
+    const [programEndDate, setProgramEndDate] = useState<string | null>(null);
+    const [currentProgramDay, setCurrentProgramDay] = useState<number | null>(null);
+    const [programTotalDays, setProgramTotalDays] = useState<number | null>(null);
+
+    // Initialize: fetch program dates, then compute available check-in dates
     useEffect(() => {
-        const today = new Date();
-        const dates = [];
-        for (let i = 0; i < 3; i++) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            const dateStr = formatDate(date, 'iso');
-            const dayName = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : date.toLocaleDateString('en-US', { weekday: 'short' });
-            const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            dates.push({ date: dateStr, label, dayName });
-        }
-        setAvailableDates(dates);
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Fetch active program
+            const { data: progId } = await supabase.rpc('get_active_program');
+            let pStart: string | null = null;
+            let pEnd: string | null = null;
+
+            if (progId) {
+                setActiveProgramId(progId);
+
+                const { data: program } = await supabase
+                    .from('programs')
+                    .select('name, start_date, end_date')
+                    .eq('id', progId)
+                    .single();
+
+                if (program) {
+                    setProgramName(program.name);
+                    pStart = program.start_date;
+                    pEnd = program.end_date;
+
+                    // Check for squad-specific date override
+                    const { data: membership } = await supabase
+                        .from('group_members')
+                        .select('group_id')
+                        .eq('user_id', user.id)
+                        .eq('status', 'approved')
+                        .single();
+
+                    if (membership) {
+                        const { data: squadOverride } = await supabase
+                            .from('program_squad_dates')
+                            .select('start_date, end_date')
+                            .eq('program_id', progId)
+                            .eq('squad_id', membership.group_id)
+                            .single();
+
+                        if (squadOverride) {
+                            pStart = squadOverride.start_date;
+                            pEnd = squadOverride.end_date;
+                        }
+                    }
+
+                    setProgramStartDate(pStart);
+                    setProgramEndDate(pEnd);
+
+                    if (pStart && pEnd) {
+                        const startD = parseLocalDate(pStart);
+                        const endD = parseLocalDate(pEnd);
+                        const tDays = differenceInDays(endD, startD) + 1;
+                        const dayNum = Math.max(1, differenceInDays(new Date(), startD) + 1);
+                        setProgramTotalDays(tDays);
+                        setCurrentProgramDay(dayNum);
+                    }
+                }
+            }
+
+            // Build available dates (3-day window, filtered to program range)
+            const today = new Date();
+            const dates: { date: string; label: string; dayName: string }[] = [];
+            for (let i = 0; i < 3; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dateStr = formatDate(date, 'iso');
+
+                // Restrict to program date range if available
+                if (pStart && dateStr < pStart) continue;
+                if (pEnd && dateStr > pEnd) continue;
+
+                const dayName = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : date.toLocaleDateString('en-US', { weekday: 'short' });
+                const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                dates.push({ date: dateStr, label, dayName });
+            }
+            setAvailableDates(dates);
+
+            // Auto-select the first valid date
+            if (dates.length > 0) {
+                setSelectedDate(dates[0].date);
+            }
+        };
+        init();
     }, []);
 
     // Fetch data when selectedDate changes
@@ -276,7 +356,8 @@ export default function CheckInPage() {
                     processed_sugar: false,
                     alcohol_excess: false,
                     negative_points: negativePoints,
-                    note_to_admin: noteToAdmin.trim() || null
+                    note_to_admin: noteToAdmin.trim() || null,
+                    program_id: activeProgramId
                 }, { onConflict: 'user_id,date' })
                 .select()
                 .single();
@@ -343,6 +424,27 @@ export default function CheckInPage() {
                     </div>
                     <DateDisplay />
                 </div>
+
+                {/* Program Context Chip */}
+                {programName && currentProgramDay && programTotalDays && (
+                    <div className="flex flex-wrap items-center gap-3 bg-zinc-900 dark:bg-zinc-800 rounded-xl px-4 py-3">
+                        <span className="text-white text-xs font-black uppercase tracking-tight">
+                            {programName}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <div className="h-1.5 w-1.5 rounded-full bg-[#FF5E00] animate-pulse" />
+                            <span className="text-[#FF5E00] text-xs font-black">
+                                Day {currentProgramDay}/{programTotalDays}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-zinc-400" />
+                            <span className="text-zinc-400 text-xs font-bold">
+                                {Math.max(0, programTotalDays - currentProgramDay)} days to go
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Date Selector Tabs */}
                 <div className="flex gap-2 overflow-x-auto pb-2">
